@@ -3,37 +3,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GameCre8 — Fresh</title>
-<body style="font-family:system-ui, sans-serif; max-width:680px; margin:3rem auto; padding:0 1rem">
-  <h1>GameCre8 (Fresh)</h1>
-  <p>Type a prompt, then <strong>Play Now</strong> to jump into the game. Or hit <strong>Test API</strong> to see the JSON.</p>
+<body style="font-family:system-ui, sans-serif; max-width:780px; margin:3rem auto; padding:0 1rem">
+  <h1 style="margin:0 0 .25rem">GameCre8 (Fresh)</h1>
+  <p style="margin:.25rem 0 1rem;color:#444">Type a prompt, tap <strong>Play Now</strong> to jump into the game — or pick an idea below.</p>
 
-  <input id="p" placeholder="Try: create a ninja platformer" style="width:100%;padding:10px;font-size:16px">
-  <div style="display:flex; gap:8px; margin-top:8px">
-    <button id="play" style="padding:10px 14px;font-size:16px">Play Now</button>
-    <button id="go" style="padding:10px 14px;font-size:16px">Test API</button>
+  <input id="p" placeholder="Try: create a ninja platformer" style="width:100%;padding:12px;font-size:16px;border:1px solid #e5e7eb;border-radius:12px">
+  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center">
+    <button id="play" style="padding:10px 14px;font-size:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f7f7f9;cursor:pointer">Play Now</button>
+    <button id="go" style="padding:10px 14px;font-size:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f7f7f9;cursor:pointer">Test API</button>
+    <span style="flex:1"></span>
+    <button id="surprise" title="Pick a random idea" style="padding:10px 14px;font-size:16px;border:1px solid #e5e7eb;border-radius:999px;background:#111;color:#fff;cursor:pointer">🎲 Surprise Me</button>
   </div>
-  <pre id="o" style="background:#f7f7f9;padding:12px;border-radius:8px;overflow:auto;margin-top:12px">Ready…</pre>
+
+  <div id="chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px"></div>
+
+  <pre id="o" style="background:#f7f7f9;padding:12px;border-radius:12px;overflow:auto;margin-top:14px;border:1px solid #efefef">Ready…</pre>
 
   <script>
     const input = document.getElementById('p');
     const out = document.getElementById('o');
+
+    // Play Now launches /play.html with the prompt
+    document.getElementById('play').onclick = () => {
+      const q = encodeURIComponent(input.value || 'hello');
+      location.href = '/play.html?prompt=' + q;
+    };
 
     // Enter key = Play Now
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('play').click();
     });
 
-    // Launch the playable page with the prompt in the URL
-    document.getElementById('play').onclick = () => {
-      const q = encodeURIComponent(input.value || 'hello');
-      location.href = '/play.html?prompt=' + q;
-    };
-
     // Test API (same as before)
     document.getElementById('go').onclick = async () => {
       const q = encodeURIComponent(input.value || 'hello');
       const r = await fetch('/api/generate?prompt=' + q);
       out.textContent = JSON.stringify(await r.json(), null, 2);
+    };
+
+    // Preset ideas + Surprise Me
+    const PRESETS = [
+      'create a ninja platformer',
+      'space runner with low gravity and lava',
+      'underwater swim to collect rings',
+      'cozy kid-friendly game to collect gems',
+      'pirate treasure island runner',
+      'unicorn jumping on clouds collecting rings'
+    ];
+
+    const chips = document.getElementById('chips');
+    PRESETS.forEach((text) => {
+      const b = document.createElement('button');
+      b.textContent = text;
+      b.style = 'padding:8px 12px;font-size:14px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;cursor:pointer';
+      b.onclick = () => { input.value = text; document.getElementById('play').click(); };
+      chips.appendChild(b);
+    });
+
+    document.getElementById('surprise').onclick = () => {
+      const pick = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+      input.value = pick;
+      document.getElementById('play').click();
     };
   </script>
 </body>
