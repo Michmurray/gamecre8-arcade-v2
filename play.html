@@ -10,7 +10,7 @@
   header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; }
   header input { flex:1; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px; }
   header button { padding:8px 12px; font-size:14px; border:1px solid var(--line); border-radius:10px; background:var(--ui); cursor:pointer }
-  #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.9); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; }
+  #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.92); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; max-width: min(92vw, 520px); }
   #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; background:#111; color:#fff; padding:8px 12px; border-radius:10px; font-size:12px; opacity:0; transition:.2s; }
   #toast.show { opacity:1 }
   canvas { display:block; width:100vw; height:calc(100vh - 50px); }
@@ -33,11 +33,6 @@ const qs = new URLSearchParams(location.search);
 const promptInput = document.getElementById('prompt');
 promptInput.value = qs.get('prompt') || '';
 
-const hud = document.getElementById('hud');
-const toast = document.getElementById('toast');
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', { alpha: false });
-
 document.getElementById('playBtn').onclick = () => {
   const p = promptInput.value.trim();
   location.href = `./play.html?prompt=${encodeURIComponent(p||'hello')}`;
@@ -47,34 +42,27 @@ promptInput.addEventListener('keydown', e => {
 });
 
 /* Share/Copy link helpers */
+const toast = document.getElementById('toast');
 function shareUrl() {
   const p = encodeURIComponent(promptInput.value || 'hello');
   return `${location.origin}${location.pathname}?prompt=${p}`;
 }
 document.getElementById('copyBtn').onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(shareUrl());
-    toast.textContent = 'Link copied';
-  } catch {
-    toast.textContent = 'Select & copy: ' + shareUrl();
-  }
+  try { await navigator.clipboard.writeText(shareUrl()); toast.textContent = 'Link copied'; }
+  catch { toast.textContent = 'Select & copy: ' + shareUrl(); }
   showToast();
 };
 document.getElementById('shareBtn').onclick = async () => {
   const url = shareUrl();
   const text = `Play my GameCre8 idea: ${promptInput.value || 'hello'}`;
-  if (navigator.share) {
-    try { await navigator.share({ title: 'GameCre8', text, url }); }
-    catch {}
-  } else {
-    await navigator.clipboard.writeText(url);
-    toast.textContent = 'Link copied';
-    showToast();
-  }
+  if (navigator.share) { try { await navigator.share({ title: 'GameCre8', text, url }); } catch {} }
+  else { await navigator.clipboard.writeText(url); toast.textContent = 'Link copied'; showToast(); }
 };
 function showToast() { toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 1200); }
 
-/* Canvas sizing */
+/* Canvas setup */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
 function fitCanvas() {
   const w = window.innerWidth;
   const h = Math.max(320, window.innerHeight - 50);
@@ -83,48 +71,80 @@ function fitCanvas() {
 }
 fitCanvas(); addEventListener('resize', fitCanvas);
 
-/* Seed gameplay params from prompt */
-const prompt = promptInput.value || 'hello';
-const seed = [...prompt].reduce((a,c)=>a + c.charCodeAt(0), 0) || 1;
-function rand() { let t = (seed * 9301 + 49297) % 233280; return () => (t = (t*9301+49297)%233280) / 233280; }
-const rnd = rand();
+/* HUD + defaults */
+const hud = document.getElementById('hud');
+const userPrompt = promptInput.value || 'hello';
 
-const fast = /\bfast|speed|runner|rush|dash|ninja\b/i.test(prompt);
-const dark = /\bdark|space|galaxy|night\b/i.test(prompt);
-const themeBG = dark ? '#0b1020' : '#eaf6ff';
-const themeGround = dark ? '#132040' : '#d2e9ff';
-const themePlayer = dark ? '#8bd1ff' : '#0b6bcb';
-const themeCoin = dark ? '#ffd166' : '#f59e0b';
-const themeHaz = dark ? '#ff4d4f' : '#ef4444';
-const BASE_SPEED = fast ? 5 : 3;
+// --- DEFAULTS (fallback if API fails) ---
+let CFG = {
+  speed: 3,
+  gravity: 0.7,
+  theme: 'light',         // 'light' | 'dark'
+  platformRate: 0.06,
+  coinRate: 0.05,
+  hazardRate: 0.03,
+  jump: 12
+};
 
-/* World */
-let t = 0;
-const g = 0.7;
-const groundY = () => canvas.height - 60;
-let score = 0;
-let best = Number(localStorage.getItem('g8_best') || 0);
-let alive = true;
-
-const player = { x: 80, y: 0, w: 28, h: 28, vy: 0, onGround:false };
-player.y = groundY() - player.h;
-
-const platforms = [];
-const coins = [];
-const hazards = [];
-
-function spawn() {
-  if (rnd() < 0.06) {
-    const y = groundY() - (Math.floor(rnd()*3)*40) - 20;
-    platforms.push({ x: canvas.width + 50, y, w: 120 + rnd()*140, h: 12, vx: -BASE_SPEED - rnd()*2 });
+// Fetch config from our API, then start the game
+(async function bootstrap(){
+  try {
+    const res = await fetch('/api/generate?prompt=' + encodeURIComponent(userPrompt));
+    const json = await res.json();
+    if (json?.config) CFG = json.config;
+    hud.textContent = `Prompt: "${userPrompt}" • theme=${CFG.theme} • speed=${CFG.speed} • gravity=${CFG.gravity} • jump=${CFG.jump}`;
+  } catch {
+    hud.textContent = `Prompt: "${userPrompt}" • (API fallback defaults)`;
   }
-  if (rnd() < 0.05) {
-    const y = groundY() - 120 - rnd()*120;
+  startGame(); // begin loop after config is ready (or fallback)
+})();
+
+/* Game state (created after CFG is ready) */
+let BASE_SPEED, GRAVITY, THEME_DARK, themeBG, themeGround, themePlayer, themeCoin, themeHaz;
+let t, score, best, alive, player, platforms, coins, hazards;
+
+function startGame() {
+  // derive visual theme from CFG
+  THEME_DARK  = CFG.theme === 'dark';
+  themeBG     = THEME_DARK ? '#0b1020' : '#eaf6ff';
+  themeGround = THEME_DARK ? '#132040' : '#d2e9ff';
+  themePlayer = THEME_DARK ? '#8bd1ff' : '#0b6bcb';
+  themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
+  themeHaz    = THEME_DARK ? '#ff4d4f' : '#ef4444';
+
+  BASE_SPEED = CFG.speed;
+  GRAVITY    = CFG.gravity;
+
+  t = 0;
+  score = 0;
+  best = Number(localStorage.getItem('g8_best') || 0);
+  alive = true;
+
+  player = { x: 80, y: 0, w: 28, h: 28, vy: 0, onGround:false };
+  player.y = groundY() - player.h;
+
+  platforms = [];
+  coins = [];
+  hazards = [];
+
+  requestAnimationFrame(step);
+}
+
+function groundY() { return canvas.height - 60; }
+
+/* Spawning uses API-configured rates */
+function spawn() {
+  if (Math.random() < CFG.platformRate) {
+    const y = groundY() - (Math.floor(Math.random()*3)*40) - 20;
+    platforms.push({ x: canvas.width + 50, y, w: 120 + Math.random()*140, h: 12, vx: -BASE_SPEED - Math.random()*2 });
+  }
+  if (Math.random() < CFG.coinRate) {
+    const y = groundY() - 120 - Math.random()*120;
     coins.push({ x: canvas.width + 20, y, r: 8, vx: -BASE_SPEED - 1.5 });
   }
-  if (rnd() < 0.03) {
+  if (Math.random() < CFG.hazardRate) {
     const y = groundY() - 24;
-    hazards.push({ x: canvas.width + 20, y, w: 24, h: 24, vx: -BASE_SPEED - rnd()*2 });
+    hazards.push({ x: canvas.width + 20, y, w: 24, h: 24, vx: -BASE_SPEED - Math.random()*2 });
   }
 }
 
@@ -136,7 +156,7 @@ addEventListener('keyup', e => keys[e.code]=false);
 addEventListener('touchstart', ()=> jump());
 
 function jump() {
-  if (player.onGround) { player.vy = -12; player.onGround=false; }
+  if (player.onGround) { player.vy = -CFG.jump; player.onGround=false; }
 }
 
 /* Game loop */
@@ -155,7 +175,7 @@ function step() {
 
   // player physics
   if (keys['Space']||keys['ArrowUp']||keys['KeyW']) jump();
-  player.vy += g;
+  player.vy += GRAVITY;
   player.y += player.vy;
   player.onGround = false;
 
@@ -165,7 +185,7 @@ function step() {
   }
 
   // platforms
-  ctx.fillStyle = dark ? '#1f2a44' : '#c7d2fe';
+  ctx.fillStyle = THEME_DARK ? '#1f2a44' : '#c7d2fe';
   for (let i=platforms.length-1;i>=0;i--){
     const p = platforms[i]; p.x += p.vx;
     ctx.fillRect(p.x, p.y, p.w, p.h);
@@ -216,34 +236,16 @@ function step() {
     requestAnimationFrame(step);
   }
 }
-requestAnimationFrame(step);
-
-addEventListener('keydown', e => {
-  if (e.code === 'KeyR' && !alive) location.reload();
-});
-
-/* Utility */
-function drawCoin(x,y,r){
-  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
-  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
-}
 function rectOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
 function circleRectOverlap(cx,cy,cr, r){
   const nx = Math.max(r.x, Math.min(cx, r.x+r.w));
   const ny = Math.max(r.y, Math.min(cy, r.y+r.h));
   const dx = cx - nx, dy = cy - ny; return (dx*dx + dy*dy) <= cr*cr;
 }
-
-/* Call our serverless function (proof of full loop) */
-(async () => {
-  try {
-    const res = await fetch('/api/generate?prompt=' + encodeURIComponent(prompt||'hello'));
-    const json = await res.json();
-    hud.textContent = `Prompt: "${prompt || 'hello'}" • ${json.message}`;
-  } catch {
-    hud.textContent = `Prompt: "${prompt || 'hello'}" • (API not reachable)`;
-  }
-})();
+function drawCoin(x,y,r){
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
+}
 </script>
 </body>
 </html>
