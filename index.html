@@ -5,15 +5,35 @@
 <title>GameCre8 — Fresh</title>
 <body style="font-family:system-ui, sans-serif; max-width:680px; margin:3rem auto; padding:0 1rem">
   <h1>GameCre8 (Fresh)</h1>
-  <p>Type anything and hit Generate. This calls <code>/api/generate</code> on Vercel.</p>
+  <p>Type a prompt, then <strong>Play Now</strong> to jump into the game. Or hit <strong>Test API</strong> to see the JSON.</p>
+
   <input id="p" placeholder="Try: create a ninja platformer" style="width:100%;padding:10px;font-size:16px">
-  <button id="go" style="padding:10px 14px;font-size:16px;margin-top:8px">Generate</button>
+  <div style="display:flex; gap:8px; margin-top:8px">
+    <button id="play" style="padding:10px 14px;font-size:16px">Play Now</button>
+    <button id="go" style="padding:10px 14px;font-size:16px">Test API</button>
+  </div>
   <pre id="o" style="background:#f7f7f9;padding:12px;border-radius:8px;overflow:auto;margin-top:12px">Ready…</pre>
+
   <script>
-    go.onclick = async () => {
-      const q = encodeURIComponent(p.value || 'hello');
+    const input = document.getElementById('p');
+    const out = document.getElementById('o');
+
+    // Enter key = Play Now
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('play').click();
+    });
+
+    // Launch the playable page with the prompt in the URL
+    document.getElementById('play').onclick = () => {
+      const q = encodeURIComponent(input.value || 'hello');
+      location.href = '/play.html?prompt=' + q;
+    };
+
+    // Test API (same as before)
+    document.getElementById('go').onclick = async () => {
+      const q = encodeURIComponent(input.value || 'hello');
       const r = await fetch('/api/generate?prompt=' + q);
-      o.textContent = JSON.stringify(await r.json(), null, 2);
+      out.textContent = JSON.stringify(await r.json(), null, 2);
     };
   </script>
 </body>
