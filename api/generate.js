@@ -1,9 +1,54 @@
 export default async function handler(req, res) {
-  const { prompt = '' } = req.query || {};
-  return res.status(200).json({
-    ok: true,
-    receivedPrompt: String(prompt),
-    message: "Fresh deploy is working. We'll wire real game-gen next.",
-    ts: new Date().toISOString()
-  });
+  try {
+    const prompt = String((req.query?.prompt ?? '') || '');
+    const p = prompt.toLowerCase();
+    const has = (...words) => words.some(w => p.includes(w));
+
+    // --- Derive config from prompt keywords ---
+    let speed = 3;
+    if (has('fast','speed','runner','dash','ninja','quick')) speed = 5;
+    if (has('slow','chill','cozy')) speed = 2.5;
+
+    let gravity = 0.7;
+    if (has('space','moon','low gravity','low-gravity','galaxy')) gravity = 0.4;
+    if (has('underwater','water','swim','float')) gravity = 0.5;
+    if (has('heavy','hardcore')) gravity = 0.9;
+
+    let theme = (has('dark','night','space','galaxy') ? 'dark' : 'light');
+
+    let platformRate = 0.06;
+    if (has('platformer','parkour','jump')) platformRate = 0.08;
+    if (has('open world','open-world','endless')) platformRate = 0.05;
+
+    let coinRate = 0.05;
+    if (has('collect','coin','ring','rings','gems','collectibles')) coinRate = 0.08;
+    if (has('easy','kids','kid-friendly')) coinRate = 0.09;
+
+    let hazardRate = 0.03;
+    if (has('lava','spike','enemy','bullet','trap','hard','difficult')) hazardRate = 0.05;
+    if (has('easy','kids','kid-friendly','cozy')) hazardRate = 0.015;
+
+    let jump = 12;
+    if (has('parkour','ninja','high jump','high-jump','bouncy')) jump = 14;
+    if (gravity < 0.6) jump = Math.max(jump, 13);
+
+    const config = { speed, gravity, theme, platformRate, coinRate, hazardRate, jump };
+
+    res.status(200).json({
+      ok: true,
+      message: 'Config generated from prompt',
+      prompt,
+      config,
+      ts: new Date().toISOString()
+    });
+  } catch (err) {
+    // Fallback (never blocks gameplay)
+    res.status(200).json({
+      ok: true,
+      message: 'Default config (API error handled)',
+      prompt: String(req.query?.prompt ?? ''),
+      config: { speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12 },
+      ts: new Date().toISOString()
+    });
+  }
 }
