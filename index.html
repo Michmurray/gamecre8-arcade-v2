@@ -5,7 +5,10 @@
 <title>GameCre8 — Fresh</title>
 <body style="font-family:system-ui, sans-serif; max-width:780px; margin:3rem auto; padding:0 1rem">
   <h1 style="margin:0 0 .25rem">GameCre8 (Fresh)</h1>
-  <p style="margin:.25rem 0 1rem;color:#444">Type a prompt, tap <strong>Play Now</strong> to jump into the game — or pick an idea below.</p>
+  <p style="margin:.25rem 0 1rem;color:#444">
+    Start typing and the game will auto-launch. You can also use direct links like
+    <code>?prompt=...&autoplay=1</code>.
+  </p>
 
   <input id="p" placeholder="Try: create a ninja platformer" style="width:100%;padding:12px;font-size:16px;border:1px solid #e5e7eb;border-radius:12px">
   <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center">
@@ -22,19 +25,18 @@
   <script>
     const input = document.getElementById('p');
     const out = document.getElementById('o');
+    const qs = new URLSearchParams(location.search);
+    const urlPrompt = qs.get('prompt');
+    const autoplay = qs.get('autoplay') === '1';
 
-    // Play Now launches /play.html with the prompt
-    document.getElementById('play').onclick = () => {
-      const q = encodeURIComponent(input.value || 'hello');
+    // Helper: launch the playable page with the prompt
+    function launchWith(text) {
+      const q = encodeURIComponent(text || 'hello');
       location.href = '/play.html?prompt=' + q;
-    };
+    }
 
-    // Enter key = Play Now
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('play').click();
-    });
-
-    // Test API (same as before)
+    // Buttons still available (but no longer required)
+    document.getElementById('play').onclick = () => launchWith(input.value);
     document.getElementById('go').onclick = async () => {
       const q = encodeURIComponent(input.value || 'hello');
       const r = await fetch('/api/generate?prompt=' + q);
@@ -50,21 +52,39 @@
       'pirate treasure island runner',
       'unicorn jumping on clouds collecting rings'
     ];
-
     const chips = document.getElementById('chips');
     PRESETS.forEach((text) => {
       const b = document.createElement('button');
       b.textContent = text;
       b.style = 'padding:8px 12px;font-size:14px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;cursor:pointer';
-      b.onclick = () => { input.value = text; document.getElementById('play').click(); };
+      b.onclick = () => launchWith(text);
       chips.appendChild(b);
     });
-
     document.getElementById('surprise').onclick = () => {
       const pick = PRESETS[Math.floor(Math.random() * PRESETS.length)];
-      input.value = pick;
-      document.getElementById('play').click();
+      launchWith(pick);
     };
+
+    // Enter key = immediate launch
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') launchWith(input.value);
+    });
+
+    // Debounced auto-launch when typing stops (no click needed)
+    let t;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => launchWith(input.value), 1000); // 1s pause → go
+    });
+
+    // If URL already has a prompt, prefill and optionally autoplay
+    if (urlPrompt) {
+      input.value = urlPrompt;
+      if (autoplay || !document.referrer) {
+        // Autoplay for explicit flag, or when landing cold with a prompt
+        launchWith(urlPrompt);
+      }
+    }
   </script>
 </body>
 </html>
