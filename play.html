@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GameCre8 — Play</title>
+<style>
+  :root { --fg:#0b0b0f; --line:#e5e7eb; --ui:#f7f7f9; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:var(--fg); }
+  header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; }
+  header input { flex:1; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px; }
+  header button { padding:8px 12px; font-size:14px; border:1px solid var(--line); border-radius:10px; background:var(--ui); }
+  #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.9); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; }
+  canvas { display:block; width:100vw; height:calc(100vh - 50px); }
+</style>
+<body>
+  <header>
+    <input id="prompt" placeholder="Describe a game… (e.g., create a ninja platformer)">
+    <button id="go">Play</button>
+    <button id="home" onclick="location.href='/'">Home</button>
+  </header>
+  <div id="hud">Loading…</div>
+  <canvas id="c"></canvas>
+
+<script>
+/* --- read prompt from URL and call our /api/generate to keep the full loop --- */
+const qs = new URLSearchParams(location.search);
+const promptInput = document.getElementById('prompt');
+promptInput.value = qs.get('prompt') || '';
+document.getElementById('go').onclick = () => {
+  const p = promptInput.value.trim();
+  location.href = `./play.html?prompt=${encodeURIComponent(p||'hello')}`;
+};
+
+const hud = document.getElementById('hud');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+function fitCanvas() {
+  const w = window.innerWidth;
+  const h = Math.max(320, window.innerHeight - 50);
+  canvas.width = w;
+  canvas.height = h;
+}
+fitCanvas(); addEventListener('resize', fitCanvas);
+
+/* Seed gameplay params from prompt */
+const prompt = promptInput.value || 'hello';
+const seed = [...prompt].reduce((a,c)=>a + c.charCodeAt(0), 0) || 1;
+function rand() { // simple seeded RNG
+  let t = (seed * 9301 + 49297) % 233280; return () => (t = (t*9301+49297)%233280) / 233280;
+}
+const rnd = rand();
+
+/* Style/theme from prompt keywords (very lightweight “interpretation”) */
+const fast = /\bfast|speed|runner|rush|dash|ninja\b/i.test(prompt);
+const dark = /\bdark|space|galaxy|night\b/i.test(prompt);
+const themeBG = dark ? '#0b1020' : '#eaf6ff';
+const themeGround = dark ? '#132040' : '#d2e9ff';
+const themePlayer = dark ? '#8bd1ff' : '#0b6bcb';
+const themeCoin = dark ? '#ffd166' : '#f59e0b';
+const themeHaz = dark ? '#ff4d4f' : '#ef4444';
+const BASE_SPEED = fast ? 5 : 3;
+
+/* World */
+let t = 0;
+const g = 0.7;
+const groundY = () => canvas.height - 60;
+let score = 0, best = 0, alive = true;
+
+const player = { x: 80, y: 0, w: 28, h: 28, vy: 0, onGround:false };
+player.y = groundY() - player.h;
+
+const platforms = [];
+const coins = [];
+const hazards = [];
+
+function spawn() {
+  if (rnd() < 0.06) {
+    const y = groundY() - (Math.floor(rnd()*3)*40) - 20;
+    platforms.push({ x: canvas.width + 50, y, w: 120 + rnd()*140, h: 12, vx: -BASE_SPEED - rnd()*2 });
+  }
+  if (rnd() < 0.05) {
+    const y = groundY() - 120 - rnd()*120;
+    coins.push({ x: canvas.width + 20, y, r: 8, vx: -BASE_SPEED - 1.5 });
+  }
+  if (rnd() < 0.03) {
+    const y = groundY() - 24;
+    hazards.push({ x: canvas.width + 20, y, w: 24, h: 24, vx: -BASE_SPEED - rnd()*2 });
+  }
+}
+
+/* Input */
+let keys = {};
+addEventListener('keydown', e => { keys[e.code]=true; if(['Space','ArrowUp','KeyW'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', e => keys[e.code]=false);
+/* Mobile tap jump */
+addEventListener('touchstart', ()=> jump());
+
+function jump() {
+  if (player.onGround) { player.vy = -12; player.onGround=false; }
+}
+
+/* Game loop */
+function step() {
+  t++;
+  // background
+  ctx.fillStyle = themeBG;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // ground
+  ctx.fillStyle = themeGround;
+  ctx.fillRect(0, groundY(), canvas.width, canvas.height - groundY());
+
+  // spawn
+  if (t % 8 === 0) spawn();
+
+  // player physics
+  if (keys['Space']||keys['ArrowUp']||keys['KeyW']) jump();
+  player.vy += g;
+  player.y += player.vy;
+  player.onGround = false;
+
+  // collide ground
+  if (player.y + player.h >= groundY()) {
+    player.y = groundY() - player.h; player.vy = 0; player.onGround = true;
+  }
+
+  // platforms
+  ctx.fillStyle = dark ? '#1f2a44' : '#c7d2fe';
+  for (let i=platforms.length-1;i>=0;i--){
+    const p = platforms[i]; p.x += p.vx;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    // landing
+    if (player.x < p.x+p.w && player.x+player.w > p.x && player.y+player.h <= p.y+10 && player.y+player.h >= p.y-10 && player.vy >= 0) {
+      player.y = p.y - player.h; player.vy = 0; player.onGround = true;
+    }
+    if (p.x + p.w < -50) platforms.splice(i,1);
+  }
+
+  // hazards
+  ctx.fillStyle = themeHaz;
+  for (let i=hazards.length-1;i>=0;i--){
+    const h = hazards[i]; h.x += h.vx;
+    ctx.fillRect(h.x, h.y, h.w, h.h);
+    if (rectOverlap(player, h)) alive = false;
+    if (h.x + h.w < -30) hazards.splice(i,1);
+  }
+
+  // coins
+  for (let i=coins.length-1;i>=0;i--){
+    const c = coins[i]; c.x += c.vx;
+    drawCoin(c.x, c.y, c.r);
+    if (circleRectOverlap(c.x, c.y, c.r, player)) { coins.splice(i,1); score+=10; best=Math.max(best,score); }
+    if (c.x + c.r < -30) coins.splice(i,1);
+  }
+
+  // player
+  ctx.fillStyle = themePlayer;
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  // HUD
+  ctx.fillStyle = '#111';
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillText(`Score: ${score}   Best: ${best}`, 14, 24);
+
+  if (!alive) {
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText('Game Over — Tap/Press R to restart', canvas.width/2, canvas.height/2);
+    ctx.textAlign='left';
+  } else {
+    requestAnimationFrame(step);
+  }
+}
+requestAnimationFrame(step);
+
+addEventListener('keydown', e => {
+  if (e.code === 'KeyR' && !alive) location.reload();
+});
+
+/* Utility */
+function drawCoin(x,y,r){
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
+}
+function rectOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
+function circleRectOverlap(cx,cy,cr, r){
+  const nx = Math.max(r.x, Math.min(cx, r.x+r.w));
+  const ny = Math.max(r.y, Math.min(cy, r.y+r.h));
+  const dx = cx - nx, dy = cy - ny; return (dx*dx + dy*dy) <= cr*cr;
+}
+
+/* Call our serverless function (proof of full loop) */
+(async () => {
+  try {
+    const res = await fetch('/api/generate?prompt=' + encodeURIComponent(prompt||'hello'));
+    const json = await res.json();
+    hud.textContent = `Prompt: "${prompt || 'hello'}" • ${json.message}`;
+  } catch {
+    hud.textContent = `Prompt: "${prompt || 'hello'}" • (API not reachable)`;
+  }
+})();
+</script>
+</body>
+</html>
