@@ -1,10 +1,15 @@
+// api/generate.js
+// Prompt → config + assets (reads /assets/manifest.json)
+// Includes a tilesheet fallback: if the chosen player filename contains "tilesheet",
+// we assume a grid of 8x1 so the game can crop frames without any manual setup.
+
 export default async function handler(req, res) {
   try {
     const prompt = String((req.query?.prompt ?? '') || '');
     const p = prompt.toLowerCase();
     const has = (...words) => words.some(w => p.includes(w));
 
-    // ---------- Base gameplay config from keywords ----------
+    // ---------- Gameplay knobs inferred from prompt ----------
     let speed = 3;
     if (has('fast','speed','runner','dash','ninja','quick')) speed = 5;
     if (has('slow','chill','cozy')) speed = 2.5;
@@ -32,7 +37,7 @@ export default async function handler(req, res) {
     if (has('parkour','ninja','high jump','high-jump','bouncy')) jump = 14;
     if (gravity < 0.6) jump = Math.max(jump, 13);
 
-    // ---------- Load manifest over HTTP from this deployment ----------
+    // ---------- Load manifest from this deployment ----------
     const proto = (req.headers['x-forwarded-proto'] || 'https');
     const host  = req.headers.host;
     const url   = `${proto}://${host}/assets/manifest.json`;
@@ -41,7 +46,9 @@ export default async function handler(req, res) {
     try {
       const r = await fetch(url);
       if (r.ok) manifest = await r.json();
-    } catch {}
+    } catch {
+      // ignore; we'll fall back below
+    }
 
     // ---------- Choose best-matching assets by tag overlap ----------
     function pick(items) {
@@ -62,9 +69,20 @@ export default async function handler(req, res) {
       speed, gravity, theme, platformRate, coinRate, hazardRate, jump,
       assets: {
         background: chosenBg?.path || null,
-        player:     chosenPlayer?.path || null
+        player:     chosenPlayer?.path || null,
+        playerFrame: chosenPlayer?.frame || null   // may be undefined in manifest
       }
     };
+
+    // ---------- Fallback for tilesheets (no manual setup needed) ----------
+    // If the selected player image name contains "tilesheet" and the manifest
+    // didn’t provide a frame grid, assume 8 columns × 1 row.
+    if (
+      !config.assets.playerFrame &&
+      (config.assets.player || '').toLowerCase().includes('tilesheet')
+    ) {
+      config.assets.playerFrame = { cols: 8, rows: 1 };
+    }
 
     res.status(200).json({
       ok: true,
@@ -73,17 +91,11 @@ export default async function handler(req, res) {
       config,
       ts: new Date().toISOString()
     });
-  } catch {
+  } catch (err) {
+    // Safe default if anything goes wrong
     res.status(200).json({
       ok: true,
       message: 'Default config (API error handled)',
       prompt: String(req.query?.prompt ?? ''),
       config: {
-        speed:3, gravity:0.7, theme:'light',
-        platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12,
-        assets: { background:null, player:null }
-      },
-      ts: new Date().toISOString()
-    });
-  }
-}
+        speed: 3,
