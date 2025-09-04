@@ -1,17 +1,85 @@
 {
   "backgrounds": [
-    { "id": "castles", "path": "/assets/backgrounds/backgroundCastles.png", "tags": ["castle","medieval","stone"] },
-    { "id": "desert_color", "path": "/assets/backgrounds/backgroundColorDesert.png", "tags": ["desert","sand","hot","day"] },
-    { "id": "fall_color", "path": "/assets/backgrounds/backgroundColorFall.png", "tags": ["fall","autumn","orange","forest"] },
-    { "id": "forest_color", "path": "/assets/backgrounds/backgroundColorForest.png", "tags": ["forest","trees","green","day"] },
-    { "id": "grass_color", "path": "/assets/backgrounds/backgroundColorGrass.png", "tags": ["grass","field","meadow","day"] },
-    { "id": "desert", "path": "/assets/backgrounds/backgroundDesert.png", "tags": ["desert","sand","dunes"] },
-    { "id": "empty", "path": "/assets/backgrounds/backgroundEmpty.png", "tags": ["neutral","minimal","plain"] },
-    { "id": "forest", "path": "/assets/backgrounds/backgroundForest.png", "tags": ["forest","trees","woods"] }
+    {
+      "id": "backgroundCastles",
+      "path": "/assets/backgrounds/backgroundCastles.png",
+      "tags": [
+        "castles"
+      ]
+    },
+    {
+      "id": "backgroundColorDesert",
+      "path": "/assets/backgrounds/backgroundColorDesert.png",
+      "tags": [
+        "desert"
+      ]
+    },
+    {
+      "id": "backgroundColorFall",
+      "path": "/assets/backgrounds/backgroundColorFall.png",
+      "tags": [
+        "fall"
+      ]
+    },
+    {
+      "id": "backgroundColorForest",
+      "path": "/assets/backgrounds/backgroundColorForest.png",
+      "tags": [
+        "forest"
+      ]
+    },
+    {
+      "id": "backgroundColorGrass",
+      "path": "/assets/backgrounds/backgroundColorGrass.png",
+      "tags": [
+        "grass"
+      ]
+    },
+    {
+      "id": "backgroundDesert",
+      "path": "/assets/backgrounds/backgroundDesert.png",
+      "tags": [
+        "desert"
+      ]
+    },
+    {
+      "id": "backgroundEmpty",
+      "path": "/assets/backgrounds/backgroundEmpty.png",
+      "tags": [
+        "empty"
+      ]
+    },
+    {
+      "id": "backgroundForest",
+      "path": "/assets/backgrounds/backgroundForest.png",
+      "tags": [
+        "forest"
+      ]
+    }
   ],
   "players": [
-    { "id": "soldier", "path": "/assets/sprites/soldier_tilesheet.png", "tags": ["soldier","army","military","gun"] },
-    { "id": "zombie", "path": "/assets/sprites/zombie_tilesheet.png", "tags": ["zombie","undead","horror"] }
+    {
+      "id": "soldier_tilesheet",
+      "path": "/assets/sprites/soldier_tilesheet.png",
+      "tags": [
+        "soldier"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "zombie_tilesheet",
+      "path": "/assets/sprites/zombie_tilesheet.png",
+      "tags": [
+        "zombie"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    }
   ],
   "hazards": [],
   "coins": []
