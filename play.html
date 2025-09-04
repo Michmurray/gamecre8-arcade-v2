@@ -1,178 +1,140 @@
 <!doctype html>
 <html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>GameCre8 — Play</title>
 <style>
   :root { --fg:#0b0b0f; --line:#e5e7eb; --ui:#f7f7f9; }
-  *{box-sizing:border-box}
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:var(--fg); }
-  header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; }
-  header input { flex:1; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px; }
+  * { box-sizing: border-box }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:var(--fg) }
+  header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center }
+  header input { flex:1; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px }
   header button { padding:8px 12px; font-size:14px; border:1px solid var(--line); border-radius:10px; background:var(--ui); cursor:pointer }
-  #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.92); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; max-width:min(92vw,520px); }
-  canvas { display:block; width:100vw; height:calc(100vh - 50px); }
+  #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.92); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px }
+  canvas { display:block; width:100vw; height:calc(100vh - 50px) }
 </style>
 <body>
   <header>
-    <input id="prompt" placeholder="Describe a game…">
+    <input id="prompt" placeholder="Describe a game…" />
     <button id="playBtn">Play</button>
-    <button id="shareBtn" title="Share link">Share</button>
-    <button id="copyBtn" title="Copy link">Copy Link</button>
     <button id="home" onclick="location.href='/'">Home</button>
   </header>
   <div id="hud">Loading…</div>
   <canvas id="c"></canvas>
 
 <script>
-/* --- URL + UI --- */
+/* -------- URL + UI -------- */
 const qs = new URLSearchParams(location.search);
 const promptInput = document.getElementById('prompt');
-promptInput.value = qs.get('prompt') || '';
+promptInput.value = qs.get('prompt') || 'hello';
 document.getElementById('playBtn').onclick = () => {
   const p = promptInput.value.trim();
-  location.href = `./play.html?prompt=${encodeURIComponent(p||'hello')}`;
+  location.href = `./play.html?prompt=${encodeURIComponent(p || 'hello')}`;
 };
-/* Share/Copy (kept) */
-function shareUrl(){ const p=encodeURIComponent(promptInput.value||'hello'); return `${location.origin}${location.pathname}?prompt=${p}`; }
-document.getElementById('copyBtn').onclick = async ()=>{ await navigator.clipboard.writeText(shareUrl()); };
-document.getElementById('shareBtn').onclick = async ()=>{ const url=shareUrl(); if(navigator.share){try{await navigator.share({title:'GameCre8',url})}catch{}} else { await navigator.clipboard.writeText(url); } };
 
-/* Canvas */
+/* -------- Canvas -------- */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d', { alpha: false });
 function fitCanvas(){ const w=innerWidth, h=Math.max(320, innerHeight-50); canvas.width=w; canvas.height=h; }
 fitCanvas(); addEventListener('resize', fitCanvas);
+function groundY(){ return canvas.height - 60; }
 
-/* HUD + defaults */
+/* -------- Defaults -------- */
 const hud = document.getElementById('hud');
-const userPrompt = promptInput.value || 'hello';
+let CFG = { speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12, assets:{ background:null, player:null, playerFrame:null } };
 
-/* Defaults (fallback if API fails) */
-let CFG = { speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12, assets:{background:null, player:null} };
-
-/* Helpers */
 function loadImage(src){ return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=()=>rej(new Error('load fail')); img.src=src; }); }
 
-/* ---- NEW: auto-detect frames in a tilesheet (or fall back to whole image) ---- */
-function detectFrames(img){
-  // Try common grid layouts (columns x rows). We’ll score tiles by alpha coverage.
-  const candidates = [
-    [12,1],[10,1],[8,1],[6,1],[5,1],[4,1],[3,1],[2,1],
-    [8,2],[6,2],[5,2],[4,2],[3,2],
-    [4,3],[3,3],[4,4]
-  ];
-  const oc = document.createElement('canvas'), octx = oc.getContext('2d');
-  let best = null, bestScore = -1;
-
-  for(const [cols, rows] of candidates){
-    if (img.width % cols !== 0) continue;            // require exact tile width
-    const tw = img.width / cols;
-    const th = Math.floor(img.height / rows);        // tolerate remainder
-    oc.width = tw; oc.height = th;
-
-    for (let r=0;r<rows;r++){
-      for (let c=0;c<cols;c++){
-        const sx = Math.floor(c*tw), sy = Math.floor(r*th);
-        octx.clearRect(0,0,tw,th);
-        octx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
-        const data = octx.getImageData(0,0,tw,th).data;
-        // score = sum of alpha (prefers non-empty tiles)
-        let score = 0;
-        for (let i=3; i<data.length; i+=4) score += data[i];
-        if (score > bestScore){
-          bestScore = score;
-          best = { cols, rows, tw, th, sx, sy };
-        }
-      }
-    }
-    // If we found a very solid tile, stop early
-    if (bestScore > 255 * (img.width*img.height/ (cols*rows)) * 0.35) break;
-  }
-
-  if (!best){
-    // Not a grid sheet; render whole image as one frame
-    return { frames:[{sx:0,sy:0,sw:img.width,sh:img.height}], tw:img.width, th:img.height, animate:false };
-  }
-
-  // Build all frames for the chosen row/col grid (use the row where best tile lives)
-  const { cols, rows, tw, th } = best;
-  const bestRow = Math.floor(best.sy / th);
-  const frames = [];
-  for (let c=0;c<cols;c++){
-    frames.push({ sx: c*tw, sy: bestRow*th, sw: tw, sh: th });
-  }
-  return { frames, tw, th, animate: cols > 1 };
-}
-
-/* Fetch config + assets, load images, detect frames */
-let BG_IMG=null, PLAYER_IMG=null, PLAYER_FRAMES=null, FRAME_I=0, FRAME_T=0;
-(async function bootstrap(){
+/* -------- Boot: fetch config + load images -------- */
+let BG_IMG=null, PLAYER_IMG=null, GRID=null;
+(async function boot(){
+  const prompt = promptInput.value || 'hello';
   try {
-    const res = await fetch('/api/generate?prompt=' + encodeURIComponent(userPrompt));
-    const json = await res.json();
-    if (json?.config) CFG = json.config;
-
-    // Load images (non-blocking)
-    try { if (CFG.assets?.background) BG_IMG = await loadImage(CFG.assets.background); } catch {}
-    try {
-      if (CFG.assets?.player) {
-        const img = await loadImage(CFG.assets.player);
-        PLAYER_IMG = img;
-        PLAYER_FRAMES = detectFrames(img);
-      }
-    } catch {}
-
-    hud.textContent = `Prompt: "${userPrompt}" • theme=${CFG.theme} • speed=${CFG.speed} • gravity=${CFG.gravity} • jump=${CFG.jump}`;
+    const r = await fetch('/api/generate?prompt=' + encodeURIComponent(prompt) + '&nocache=' + Date.now());
+    const j = await r.json(); if (j?.config) CFG = j.config;
+    if (CFG.assets.background) { try { BG_IMG = await loadImage(CFG.assets.background); } catch {} }
+    if (CFG.assets.player)     { try { PLAYER_IMG = await loadImage(CFG.assets.player); } catch {} }
+    GRID = CFG.assets.playerFrame || null; // {cols, rows} if provided by API
+    hud.textContent = `Prompt: "${prompt}" • theme=${CFG.theme} • speed=${CFG.speed} • gravity=${CFG.gravity}`;
   } catch {
-    hud.textContent = `Prompt: "${userPrompt}" • (API fallback defaults)`;
+    hud.textContent = `Prompt: "${prompt}" • (API fallback)`;
   }
   startGame();
 })();
 
-/* Game state */
-let BASE_SPEED, GRAVITY, THEME_DARK, themeBG, themeGround, themeCoin, themeHaz;
-let t, score, alive, player, platforms, coins, hazards;
-
+/* -------- Game state -------- */
+let t=0, alive=true, score=0;
+let THEME_DARK=false, themeBG, themeGround, themeHaz, themeCoin;
+const player = { x:80, y:0, w:36, h:36, vy:0, onGround:false };
+const platforms=[], coins=[], hazards=[];
 function startGame(){
   THEME_DARK  = CFG.theme === 'dark';
   themeBG     = THEME_DARK ? '#0b1020' : '#eaf6ff';
   themeGround = THEME_DARK ? '#132040' : '#d2e9ff';
-  themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
   themeHaz    = THEME_DARK ? '#ff4d4f' : '#ef4444';
-  BASE_SPEED  = CFG.speed; GRAVITY = CFG.gravity;
-
-  t = 0; score = 0; alive = true;
-  player = { x: 80, y: 0, w: 36, h: 36, vy: 0, onGround:false };
+  themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
   player.y = groundY() - player.h;
-
-  platforms = []; coins = []; hazards = [];
   requestAnimationFrame(step);
 }
 
-function groundY(){ return canvas.height - 60; }
+/* -------- Input -------- */
+addEventListener('keydown', e => {
+  if (['Space','ArrowUp','KeyW'].includes(e.code)) {
+    if (player.onGround) { player.vy = -CFG.jump; player.onGround=false; }
+    e.preventDefault();
+  }
+  if (e.code === 'KeyR' && !alive) location.reload();
+});
+
+/* -------- Spawning -------- */
 function spawn(){
   if (Math.random() < CFG.platformRate) {
     const y = groundY() - (Math.floor(Math.random()*3)*40) - 20;
-    platforms.push({ x: canvas.width + 50, y, w: 120 + Math.random()*140, h: 12, vx: -BASE_SPEED - Math.random()*2 });
+    platforms.push({ x: canvas.width+50, y, w:120+Math.random()*140, h:12, vx:-CFG.speed - Math.random()*2 });
   }
   if (Math.random() < CFG.coinRate) {
     const y = groundY() - 120 - Math.random()*120;
-    coins.push({ x: canvas.width + 20, y, r: 8, vx: -BASE_SPEED - 1.5 });
+    coins.push({ x: canvas.width+20, y, r:8, vx:-CFG.speed - 1.5 });
   }
   if (Math.random() < CFG.hazardRate) {
     const y = groundY() - 24;
-    hazards.push({ x: canvas.width + 20, y, w: 24, h: 24, vx: -BASE_SPEED - Math.random()*2 });
+    hazards.push({ x: canvas.width+20, y, w:24, h:24, vx:-CFG.speed - Math.random()*2 });
   }
 }
 
-/* Input */
-let keys = {};
-addEventListener('keydown', e => { keys[e.code]=true; if(['Space','ArrowUp','KeyW','KeyR'].includes(e.code)) e.preventDefault(); });
-addEventListener('keyup', e => keys[e.code]=false);
-function jump(){ if (player.onGround) { player.vy = -CFG.jump; player.onGround=false; } }
+/* -------- Draw helpers -------- */
+function rectOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
+function circleRectOverlap(cx,cy,cr, r){
+  const nx=Math.max(r.x, Math.min(cx, r.x+r.w));
+  const ny=Math.max(r.y, Math.min(cy, r.y+r.h));
+  const dx=cx-nx, dy=cy-ny; return (dx*dx + dy*dy) <= cr*cr;
+}
+function drawCoin(x,y,r){
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
+}
+let animCol=0;
+function drawPlayer(){
+  if (!PLAYER_IMG){
+    ctx.fillStyle = THEME_DARK ? '#8bd1ff' : '#0b6bcb';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    return;
+  }
+  // If we have a frame grid (from API), crop from tilesheet. Otherwise draw full image.
+  if (GRID && GRID.cols>0 && GRID.rows>0) {
+    const tw = Math.floor(PLAYER_IMG.width  / GRID.cols);
+    const th = Math.floor(PLAYER_IMG.height / GRID.rows);
+    // simple walk anim across columns
+    if (t % 6 === 0) animCol = (animCol + 1) % GRID.cols;
+    const sx = animCol * tw;
+    const sy = 0; // first row is usually the walk row
+    ctx.drawImage(PLAYER_IMG, sx, sy, tw, th, player.x, player.y, player.w, player.h);
+  } else {
+    ctx.drawImage(PLAYER_IMG, player.x, player.y, player.w, player.h);
+  }
+}
 
-/* Game loop */
+/* -------- Game loop -------- */
 function step(){
   t++;
 
@@ -184,90 +146,15 @@ function step(){
   ctx.fillStyle = themeGround;
   ctx.fillRect(0, groundY(), canvas.width, canvas.height - groundY());
 
-  // Spawning
+  // Spawn & move
   if (t % 8 === 0) spawn();
 
-  // Controls & physics
-  if (keys['Space']||keys['ArrowUp']||keys['KeyW']) jump();
-  player.vy += GRAVITY;
+  player.vy += CFG.gravity;
   player.y += player.vy;
   player.onGround = false;
-
-  // Ground collision
   if (player.y + player.h >= groundY()) { player.y = groundY() - player.h; player.vy = 0; player.onGround = true; }
 
-  // Platforms
   ctx.fillStyle = THEME_DARK ? '#1f2a44' : '#c7d2fe';
-  for (let i=platforms.length-1;i>=0;i--){
-    const p = platforms[i]; p.x += p.vx;
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-    if (player.x < p.x+p.w && player.x+player.w > p.x && player.y+player.h <= p.y+10 && player.y+player.h >= p.y-10 && player.vy >= 0) {
-      player.y = p.y - player.h; player.vy = 0; player.onGround = true;
-    }
-    if (p.x + p.w < -50) platforms.splice(i,1);
-  }
+  for (let i=platfo
 
-  // Hazards
-  ctx.fillStyle = themeHaz;
-  for (let i=hazards.length-1;i>=0;i--){
-    const h = hazards[i]; h.x += h.vx;
-    ctx.fillRect(h.x, h.y, h.w, h.h);
-    if (rectOverlap(player, h)) alive = false;
-    if (h.x + h.w < -30) hazards.splice(i,1);
-  }
-
-  // Coins
-  for (let i=coins.length-1;i>=0;i--){
-    const c = coins[i]; c.x += c.vx;
-    drawCoin(c.x, c.y, c.r);
-    if (circleRectOverlap(c.x, c.y, c.r, player)) { coins.splice(i,1); score+=10; }
-    if (c.x + c.r < -30) coins.splice(i,1);
-  }
-
-  // Player (sheet-aware)
-  if (PLAYER_IMG && PLAYER_FRAMES){
-    const { frames, animate } = PLAYER_FRAMES;
-    if (animate && (t % 6 === 0)) FRAME_I = (FRAME_I + 1) % frames.length;  // step speed
-    const f = frames[Math.min(FRAME_I, frames.length-1)];
-    ctx.drawImage(PLAYER_IMG, f.sx, f.sy, f.sw, f.sh, player.x, player.y, player.w, player.h);
-  } else {
-    // Fallback rectangle
-    ctx.fillStyle = THEME_DARK ? '#8bd1ff' : '#0b6bcb';
-    ctx.fillRect(player.x, player.y, player.w, player.h);
-  }
-
-  // HUD
-  ctx.fillStyle = '#111';
-  ctx.font = 'bold 16px system-ui';
-  ctx.fillText(`Score: ${score}`, 14, 24);
-  ctx.font = '12px system-ui';
-  ctx.fillText('Space/↑ to jump • R restart', 14, 44);
-
-  if (!alive) {
-    ctx.fillStyle = 'rgba(0,0,0,.6)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 22px system-ui';
-    ctx.textAlign='center';
-    ctx.fillText('Game Over — Press R to restart', canvas.width/2, canvas.height/2);
-    ctx.textAlign='left';
-  } else {
-    requestAnimationFrame(step);
-  }
-}
-
-/* Utils */
-addEventListener('keydown', e => { if (e.code === 'KeyR' && !alive) location.reload(); });
-function rectOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
-function circleRectOverlap(cx,cy,cr, r){
-  const nx = Math.max(r.x, Math.min(cx, r.x+r.w));
-  const ny = Math.max(r.y, Math.min(cy, r.y+r.h));
-  const dx = cx - nx, dy = cy - ny; return (dx*dx + dy*dy) <= cr*cr;
-}
-function drawCoin(x,y,r){
-  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
-  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
-}
-</script>
-</body>
-</html>
+  
