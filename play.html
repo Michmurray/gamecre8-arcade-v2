@@ -68,4 +68,141 @@ let BG_IMG=null, PLAYER_IMG=null;
 
     hud.textContent = `Prompt: "${userPrompt}" • theme=${CFG.theme} • speed=${CFG.speed} • gravity=${CFG.gravity} • jump=${CFG.jump}`;
   } catch {
-    hud.textContent = `Prompt: "${userPrompt}" • (API fallb
+    hud.textContent = `Prompt: "${userPrompt}" • (API fallback defaults)`;
+  }
+  startGame();
+})();
+
+/* Game state */
+let BASE_SPEED, GRAVITY, THEME_DARK, themeBG, themeGround, themeCoin, themeHaz;
+let t, score, alive, player, platforms, coins, hazards;
+
+function startGame(){
+  THEME_DARK  = CFG.theme === 'dark';
+  themeBG     = THEME_DARK ? '#0b1020' : '#eaf6ff';
+  themeGround = THEME_DARK ? '#132040' : '#d2e9ff';
+  themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
+  themeHaz    = THEME_DARK ? '#ff4d4f' : '#ef4444';
+  BASE_SPEED  = CFG.speed; GRAVITY = CFG.gravity;
+
+  t = 0; score = 0; alive = true;
+  player = { x: 80, y: 0, w: 32, h: 32, vy: 0, onGround:false };
+  player.y = groundY() - player.h;
+
+  platforms = []; coins = []; hazards = [];
+  requestAnimationFrame(step);
+}
+
+function groundY(){ return canvas.height - 60; }
+function spawn(){
+  if (Math.random() < CFG.platformRate) {
+    const y = groundY() - (Math.floor(Math.random()*3)*40) - 20;
+    platforms.push({ x: canvas.width + 50, y, w: 120 + Math.random()*140, h: 12, vx: -BASE_SPEED - Math.random()*2 });
+  }
+  if (Math.random() < CFG.coinRate) {
+    const y = groundY() - 120 - Math.random()*120;
+    coins.push({ x: canvas.width + 20, y, r: 8, vx: -BASE_SPEED - 1.5 });
+  }
+  if (Math.random() < CFG.hazardRate) {
+    const y = groundY() - 24;
+    hazards.push({ x: canvas.width + 20, y, w: 24, h: 24, vx: -BASE_SPEED - Math.random()*2 });
+  }
+}
+
+/* Input */
+let keys = {};
+addEventListener('keydown', e => { keys[e.code]=true; if(['Space','ArrowUp','KeyW','KeyR'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', e => keys[e.code]=false);
+function jump(){ if (player.onGround) { player.vy = -CFG.jump; player.onGround=false; } }
+
+/* Game loop */
+function step(){
+  t++;
+
+  // Background: draw image if available, else color
+  if (BG_IMG) ctx.drawImage(BG_IMG, 0, 0, canvas.width, canvas.height);
+  else { ctx.fillStyle = themeBG; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
+  // ground
+  ctx.fillStyle = themeGround;
+  ctx.fillRect(0, groundY(), canvas.width, canvas.height - groundY());
+
+  // spawn
+  if (t % 8 === 0) spawn();
+
+  // controls & physics
+  if (keys['Space']||keys['ArrowUp']||keys['KeyW']) jump();
+  player.vy += GRAVITY;
+  player.y += player.vy;
+  player.onGround = false;
+
+  // ground collision
+  if (player.y + player.h >= groundY()) { player.y = groundY() - player.h; player.vy = 0; player.onGround = true; }
+
+  // platforms
+  ctx.fillStyle = THEME_DARK ? '#1f2a44' : '#c7d2fe';
+  for (let i=platforms.length-1;i>=0;i--){
+    const p = platforms[i]; p.x += p.vx;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    if (player.x < p.x+p.w && player.x+player.w > p.x && player.y+player.h <= p.y+10 && player.y+player.h >= p.y-10 && player.vy >= 0) {
+      player.y = p.y - player.h; player.vy = 0; player.onGround = true;
+    }
+    if (p.x + p.w < -50) platforms.splice(i,1);
+  }
+
+  // hazards
+  ctx.fillStyle = themeHaz;
+  for (let i=hazards.length-1;i>=0;i--){
+    const h = hazards[i]; h.x += h.vx;
+    ctx.fillRect(h.x, h.y, h.w, h.h);
+    if (rectOverlap(player, h)) alive = false;
+    if (h.x + h.w < -30) hazards.splice(i,1);
+  }
+
+  // coins
+  for (let i=coins.length-1;i>=0;i--){
+    const c = coins[i]; c.x += c.vx;
+    drawCoin(c.x, c.y, c.r);
+    if (circleRectOverlap(c.x, c.y, c.r, player)) { coins.splice(i,1); score+=10; }
+    if (c.x + c.r < -30) coins.splice(i,1);
+  }
+
+  // player (sprite if provided)
+  if (PLAYER_IMG) ctx.drawImage(PLAYER_IMG, player.x, player.y, player.w, player.h);
+  else { ctx.fillStyle = THEME_DARK ? '#8bd1ff' : '#0b6bcb'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+
+  // HUD
+  ctx.fillStyle = '#111';
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillText(`Score: ${score}`, 14, 24);
+  ctx.font = '12px system-ui';
+  ctx.fillText('Space/↑ to jump • R restart', 14, 44);
+
+  if (!alive) {
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText('Game Over — Press R to restart', canvas.width/2, canvas.height/2);
+    ctx.textAlign='left';
+  } else {
+    requestAnimationFrame(step);
+  }
+}
+
+/* Utils */
+addEventListener('keydown', e => { if (e.code === 'KeyR' && !alive) location.reload(); });
+function rectOverlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
+function circleRectOverlap(cx,cy,cr, r){
+  const nx = Math.max(r.x, Math.min(cx, r.x+r.w));
+  const ny = Math.max(r.y, Math.min(cy, r.y+r.h));
+  const dx = cx - nx, dy = cy - ny; return (dx*dx + dy*dy) <= cr*cr;
+}
+function drawCoin(x,y,r){
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath();
+}
+</script>
+</body>
+</html>
