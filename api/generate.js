@@ -99,3 +99,15 @@ export default async function handler(req, res) {
       prompt: String(req.query?.prompt ?? ''),
       config: {
         speed: 3,
+        gravity: 0.7,
+        theme: 'light',
+        platformRate: 0.06,
+        coinRate: 0.05,
+        hazardRate: 0.03,
+        jump: 12,
+        assets: { background: null, player: null, playerFrame: null }
+      },
+      ts: new Date().toISOString()
+    });
+  }
+}
