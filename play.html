@@ -33,12 +33,12 @@ document.getElementById('playBtn').onclick = () => {
   const p = promptInput.value.trim();
   location.href = `./play.html?prompt=${encodeURIComponent(p||'hello')}`;
 };
-/* Share/Copy link helpers */
+/* Share/Copy (kept) */
 function shareUrl(){ const p=encodeURIComponent(promptInput.value||'hello'); return `${location.origin}${location.pathname}?prompt=${p}`; }
 document.getElementById('copyBtn').onclick = async ()=>{ await navigator.clipboard.writeText(shareUrl()); };
 document.getElementById('shareBtn').onclick = async ()=>{ const url=shareUrl(); if(navigator.share){try{await navigator.share({title:'GameCre8',url})}catch{}} else { await navigator.clipboard.writeText(url); } };
 
-/* Canvas setup */
+/* Canvas */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d', { alpha: false });
 function fitCanvas(){ const w=innerWidth, h=Math.max(320, innerHeight-50); canvas.width=w; canvas.height=h; }
@@ -51,20 +51,77 @@ const userPrompt = promptInput.value || 'hello';
 /* Defaults (fallback if API fails) */
 let CFG = { speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12, assets:{background:null, player:null} };
 
-/* Helper to load an image safely */
+/* Helpers */
 function loadImage(src){ return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=()=>rej(new Error('load fail')); img.src=src; }); }
 
-/* Fetch config + assets, then start */
-let BG_IMG=null, PLAYER_IMG=null;
+/* ---- NEW: auto-detect frames in a tilesheet (or fall back to whole image) ---- */
+function detectFrames(img){
+  // Try common grid layouts (columns x rows). We’ll score tiles by alpha coverage.
+  const candidates = [
+    [12,1],[10,1],[8,1],[6,1],[5,1],[4,1],[3,1],[2,1],
+    [8,2],[6,2],[5,2],[4,2],[3,2],
+    [4,3],[3,3],[4,4]
+  ];
+  const oc = document.createElement('canvas'), octx = oc.getContext('2d');
+  let best = null, bestScore = -1;
+
+  for(const [cols, rows] of candidates){
+    if (img.width % cols !== 0) continue;            // require exact tile width
+    const tw = img.width / cols;
+    const th = Math.floor(img.height / rows);        // tolerate remainder
+    oc.width = tw; oc.height = th;
+
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        const sx = Math.floor(c*tw), sy = Math.floor(r*th);
+        octx.clearRect(0,0,tw,th);
+        octx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
+        const data = octx.getImageData(0,0,tw,th).data;
+        // score = sum of alpha (prefers non-empty tiles)
+        let score = 0;
+        for (let i=3; i<data.length; i+=4) score += data[i];
+        if (score > bestScore){
+          bestScore = score;
+          best = { cols, rows, tw, th, sx, sy };
+        }
+      }
+    }
+    // If we found a very solid tile, stop early
+    if (bestScore > 255 * (img.width*img.height/ (cols*rows)) * 0.35) break;
+  }
+
+  if (!best){
+    // Not a grid sheet; render whole image as one frame
+    return { frames:[{sx:0,sy:0,sw:img.width,sh:img.height}], tw:img.width, th:img.height, animate:false };
+  }
+
+  // Build all frames for the chosen row/col grid (use the row where best tile lives)
+  const { cols, rows, tw, th } = best;
+  const bestRow = Math.floor(best.sy / th);
+  const frames = [];
+  for (let c=0;c<cols;c++){
+    frames.push({ sx: c*tw, sy: bestRow*th, sw: tw, sh: th });
+  }
+  return { frames, tw, th, animate: cols > 1 };
+}
+
+/* Fetch config + assets, load images, detect frames */
+let BG_IMG=null, PLAYER_IMG=null, PLAYER_FRAMES=null, FRAME_I=0, FRAME_T=0;
 (async function bootstrap(){
   try {
     const res = await fetch('/api/generate?prompt=' + encodeURIComponent(userPrompt));
     const json = await res.json();
     if (json?.config) CFG = json.config;
 
-    // Load images if present
+    // Load images (non-blocking)
     try { if (CFG.assets?.background) BG_IMG = await loadImage(CFG.assets.background); } catch {}
-    try { if (CFG.assets?.player)     PLAYER_IMG = await loadImage(CFG.assets.player); } catch {}
+    try {
+      if (CFG.assets?.player) {
+        const img = await loadImage(CFG.assets.player);
+        PLAYER_IMG = img;
+        PLAYER_FRAMES = detectFrames(img);
+      }
+    } catch {}
 
     hud.textContent = `Prompt: "${userPrompt}" • theme=${CFG.theme} • speed=${CFG.speed} • gravity=${CFG.gravity} • jump=${CFG.jump}`;
   } catch {
@@ -86,7 +143,7 @@ function startGame(){
   BASE_SPEED  = CFG.speed; GRAVITY = CFG.gravity;
 
   t = 0; score = 0; alive = true;
-  player = { x: 80, y: 0, w: 32, h: 32, vy: 0, onGround:false };
+  player = { x: 80, y: 0, w: 36, h: 36, vy: 0, onGround:false };
   player.y = groundY() - player.h;
 
   platforms = []; coins = []; hazards = [];
@@ -119,27 +176,27 @@ function jump(){ if (player.onGround) { player.vy = -CFG.jump; player.onGround=f
 function step(){
   t++;
 
-  // Background: draw image if available, else color
+  // Background
   if (BG_IMG) ctx.drawImage(BG_IMG, 0, 0, canvas.width, canvas.height);
   else { ctx.fillStyle = themeBG; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
-  // ground
+  // Ground
   ctx.fillStyle = themeGround;
   ctx.fillRect(0, groundY(), canvas.width, canvas.height - groundY());
 
-  // spawn
+  // Spawning
   if (t % 8 === 0) spawn();
 
-  // controls & physics
+  // Controls & physics
   if (keys['Space']||keys['ArrowUp']||keys['KeyW']) jump();
   player.vy += GRAVITY;
   player.y += player.vy;
   player.onGround = false;
 
-  // ground collision
+  // Ground collision
   if (player.y + player.h >= groundY()) { player.y = groundY() - player.h; player.vy = 0; player.onGround = true; }
 
-  // platforms
+  // Platforms
   ctx.fillStyle = THEME_DARK ? '#1f2a44' : '#c7d2fe';
   for (let i=platforms.length-1;i>=0;i--){
     const p = platforms[i]; p.x += p.vx;
@@ -150,7 +207,7 @@ function step(){
     if (p.x + p.w < -50) platforms.splice(i,1);
   }
 
-  // hazards
+  // Hazards
   ctx.fillStyle = themeHaz;
   for (let i=hazards.length-1;i>=0;i--){
     const h = hazards[i]; h.x += h.vx;
@@ -159,7 +216,7 @@ function step(){
     if (h.x + h.w < -30) hazards.splice(i,1);
   }
 
-  // coins
+  // Coins
   for (let i=coins.length-1;i>=0;i--){
     const c = coins[i]; c.x += c.vx;
     drawCoin(c.x, c.y, c.r);
@@ -167,9 +224,17 @@ function step(){
     if (c.x + c.r < -30) coins.splice(i,1);
   }
 
-  // player (sprite if provided)
-  if (PLAYER_IMG) ctx.drawImage(PLAYER_IMG, player.x, player.y, player.w, player.h);
-  else { ctx.fillStyle = THEME_DARK ? '#8bd1ff' : '#0b6bcb'; ctx.fillRect(player.x, player.y, player.w, player.h); }
+  // Player (sheet-aware)
+  if (PLAYER_IMG && PLAYER_FRAMES){
+    const { frames, animate } = PLAYER_FRAMES;
+    if (animate && (t % 6 === 0)) FRAME_I = (FRAME_I + 1) % frames.length;  // step speed
+    const f = frames[Math.min(FRAME_I, frames.length-1)];
+    ctx.drawImage(PLAYER_IMG, f.sx, f.sy, f.sw, f.sh, player.x, player.y, player.w, player.h);
+  } else {
+    // Fallback rectangle
+    ctx.fillStyle = THEME_DARK ? '#8bd1ff' : '#0b6bcb';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+  }
 
   // HUD
   ctx.fillStyle = '#111';
