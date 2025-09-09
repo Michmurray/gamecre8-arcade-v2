@@ -1,0 +1,226 @@
+name: Propose Auto-Tune Play Page
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Write an auto-tuned play.html (auto-sizes sprites, keeps debug overlay)
+      - name: Write auto-tuned play.html
+        run: |
+          cat > play.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+          <title>GameCre8 — Play</title>
+          <style>
+            :root { --fg:#0b0b0f; --line:#e5e7eb; --ui:#f7f7f9; }
+            * { box-sizing: border-box }
+            body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:var(--fg) }
+            header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center }
+            header input { flex:1; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px }
+            header button { padding:8px 12px; font-size:14px; border:1px solid var(--line); border-radius:10px; background:var(--ui); cursor:pointer }
+            #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.92); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; max-width:min(92vw,520px) }
+            #dbg { position:fixed; right:10px; top:58px; background:rgba(0,0,0,.75); color:#fff; padding:8px 10px; border-radius:10px; font:12px/1.4 system-ui; max-width:min(92vw,520px); white-space:pre-wrap; display:none }
+            canvas { display:block; width:100vw; height:calc(100vh - 50px) }
+          </style>
+          <body>
+            <header>
+              <input id="prompt" placeholder="Describe a game…" />
+              <button id="playBtn">Play</button>
+              <button id="home" onclick="location.href='/'">Home</button>
+            </header>
+            <div id="hud">Loading…</div>
+            <div id="dbg"></div>
+            <canvas id="c"></canvas>
+
+          <script>
+          // ------- Query string -------
+          function qp(name){ var m=new RegExp('[?&]'+name+'=([^&]*)').exec(location.search); return m?decodeURIComponent(m[1].replace(/\+/g,'%20')):''; }
+          var promptInput=document.getElementById('prompt');
+          promptInput.value = qp('prompt') || 'hello';
+          document.getElementById('playBtn').onclick=function(){ var p=(promptInput.value||'').trim(); location.href='./play.html?prompt='+encodeURIComponent(p||'hello'); };
+          var DEBUG = qp('debug')==='1'; var dbgEl=document.getElementById('dbg'); if(DEBUG) dbgEl.style.display='block';
+
+          // ------- Canvas -------
+          var canvas=document.getElementById('c'); var ctx=canvas.getContext('2d',{alpha:false});
+          function fitCanvas(){ var w=innerWidth, h=Math.max(320, innerHeight-50); canvas.width=w; canvas.height=h; }
+          fitCanvas(); addEventListener('resize', fitCanvas);
+          function groundY(){ return canvas.height - 60; }
+
+          // ------- Defaults -------
+          var hud=document.getElementById('hud');
+          var CFG={ speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12, assets:{ background:null, player:null, playerFrame:null } };
+          function loadImage(src){ return new Promise(function(res,rej){ var i=new Image(); i.onload=function(){res(i)}; i.onerror=function(){rej(new Error('load fail '+src))}; i.src=src; }); }
+
+          // ------- Game state -------
+          var t=0, alive=true, score=0;
+          var THEME_DARK=false, themeBG, themeGround, themeHaz, themeCoin;
+          var player={ x:80, y:0, w:64, h:64, vy:0, onGround:false };
+          var BG_IMG=null, PLAYER_IMG=null, GRID=null;
+          var platforms=[], coins=[], hazards=[];
+
+          // ------- Boot -------
+          (function(){
+            var prompt = promptInput.value || 'hello';
+            fetch('/api/generate?prompt='+encodeURIComponent(prompt)+'&nocache='+Date.now())
+              .then(function(r){ return r.json(); })
+              .then(function(j){
+                if (j && j.config) CFG=j.config;
+                if (DEBUG) dbgEl.textContent='API chosen:\\n'+JSON.stringify({assets:CFG.assets},null,2);
+              })
+              .catch(function(e){ if (DEBUG) dbgEl.textContent='API error: '+e; })
+              .then(function(){
+                var tasks=[];
+                if (CFG.assets && CFG.assets.background) tasks.push(loadImage(CFG.assets.background).then(function(img){ BG_IMG=img; }).catch(function(e){ if(DEBUG) dbgEl.textContent+='\\nBG load fail: '+e; }));
+                if (CFG.assets && CFG.assets.player)     tasks.push(loadImage(CFG.assets.player).then(function(img){ PLAYER_IMG=img; }).catch(function(e){ if(DEBUG) dbgEl.textContent+='\\nPlayer load fail: '+e; }));
+                GRID = (CFG.assets && CFG.assets.playerFrame) ? CFG.assets.playerFrame : null;
+                return Promise.all(tasks);
+              })
+              .then(function(){
+                // ---- AUTO-SIZE PLAYER (no manual tweaks) ----
+                try{
+                  var frameW=48, frameH=48;
+                  if (PLAYER_IMG){
+                    if (GRID && GRID.cols>0 && GRID.rows>0){
+                      frameW=Math.floor(PLAYER_IMG.width/GRID.cols);
+                      frameH=Math.floor(PLAYER_IMG.height/GRID.rows);
+                    }else{
+                      // best-effort auto grid: prefer wide strips like 12x1, 8x1, 6x1, 3x1, else 1x1
+                      var tryCols=[12,10,8,6,5,4,3,2];
+                      var guessed=null;
+                      for(var c of tryCols){ if(PLAYER_IMG.width % c===0){ guessed={cols:c,rows:1}; break; } }
+                      if(!guessed){ var tryRows=[12,10,8,6,5,4,3,2]; for(var r of tryRows){ if(PLAYER_IMG.height % r===0){ guessed={cols:1,rows:r}; break; } } }
+                      if(guessed){ GRID=guessed; frameW=Math.floor(PLAYER_IMG.width/GRID.cols); frameH=Math.floor(PLAYER_IMG.height/GRID.rows); }
+                      else{ frameW=PLAYER_IMG.width; frameH=PLAYER_IMG.height; }
+                    }
+                  }
+                  var aspect = frameW>0 ? (frameW/(frameH||1)) : 1;
+                  var targetH = Math.min(128, Math.max(64, Math.round(frameH*2))); // 64–128 px
+                  player.h = targetH;
+                  player.w = Math.round(targetH * aspect);
+                }catch(e){}
+
+                hud.textContent='Prompt: "'+prompt+'" • theme='+CFG.theme+' • speed='+CFG.speed+' • gravity='+CFG.gravity;
+                startGame();
+              })
+              .catch(function(){
+                hud.textContent='Prompt: "'+prompt+'" • (API fallback)';
+                startGame();
+              });
+          })();
+
+          // ------- Input -------
+          addEventListener('keydown', function(e){
+            if (e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){ if(player.onGround){ player.vy=-CFG.jump; player.onGround=false; } e.preventDefault(); }
+            if (e.code==='KeyR' && !alive) location.reload();
+          });
+
+          // ------- Game helpers -------
+          function spawn(){
+            if (t%8===0 && Math.random()<CFG.platformRate){
+              var y=groundY() - (Math.floor(Math.random()*3)*40) - 20;
+              platforms.push({ x:canvas.width+50, y:y, w:120+Math.random()*140, h:12, vx:-CFG.speed - Math.random()*2 });
+            }
+            if (Math.random()<CFG.coinRate){
+              var y2=groundY() - 120 - Math.random()*120;
+              coins.push({ x:canvas.width+20, y:y2, r:8, vx:-CFG.speed-1.5 });
+            }
+            if (Math.random()<CFG.hazardRate){
+              var y3=groundY() - 24;
+              hazards.push({ x:canvas.width+20, y:y3, w:24, h:24, vx:-CFG.speed - Math.random()*2 });
+            }
+          }
+          function rectOverlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+          function circleRectOverlap(cx,cy,cr,r){ var nx=Math.max(r.x,Math.min(cx,r.x+r.w)); var ny=Math.max(r.y,Math.min(cy,r.y+r.h)); var dx=cx-nx, dy=cy-ny; return (dx*dx+dy*dy)<=cr*cr; }
+
+          var animCol=0;
+          function drawPlayer(){
+            if(!PLAYER_IMG){ ctx.fillStyle=THEME_DARK?'#8bd1ff':'#0b6bcb'; ctx.fillRect(player.x,player.y,player.w,player.h); if(DEBUG) dbgEl.textContent+='\\n(no PLAYER_IMG — fallback box)'; return; }
+            var grid=(GRID && GRID.cols>0 && GRID.rows>0)?GRID:null;
+            if(grid){
+              var tw=Math.floor(PLAYER_IMG.width/grid.cols), th=Math.floor(PLAYER_IMG.height/grid.rows);
+              if(t%6===0) animCol=(animCol+1)%Math.max(1,grid.cols);
+              var sx=(grid.cols>1?animCol:0)*tw, sy=0;
+              ctx.drawImage(PLAYER_IMG,sx,sy,tw,th,player.x,player.y,player.w,player.h);
+            }else{
+              ctx.drawImage(PLAYER_IMG,player.x,player.y,player.w,player.h);
+            }
+          }
+
+          function drawCoin(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=themeCoin; ctx.fill(); ctx.closePath();
+            ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath(); }
+
+          // ------- Loop -------
+          function startGame(){
+            THEME_DARK = CFG.theme==='dark';
+            themeBG     = THEME_DARK ? '#0b1020' : '#eaf6ff';
+            themeGround = THEME_DARK ? '#132040' : '#d2e9ff';
+            themeHaz    = THEME_DARK ? '#ff4d4f' : '#ef4444';
+            themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
+            player.y=groundY()-player.h;
+            requestAnimationFrame(step);
+          }
+
+          function step(){
+            t++;
+
+            // BG
+            if(BG_IMG) ctx.drawImage(BG_IMG,0,0,canvas.width,canvas.height); else { ctx.fillStyle=themeBG; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
+            // Ground
+            ctx.fillStyle=themeGround; ctx.fillRect(0,groundY(),canvas.width,canvas.height-groundY());
+
+            // Spawn & move
+            spawn();
+
+            player.vy+=CFG.gravity; player.y+=player.vy; player.onGround=false;
+            if(player.y+player.h>=groundY()){ player.y=groundY()-player.h; player.vy=0; player.onGround=true; }
+
+            ctx.fillStyle=THEME_DARK ? '#1f2a44' : '#c7d2fe';
+            for(var i=platforms.length-1;i>=0;i--){ var p=platforms[i]; p.x+=p.vx; ctx.fillRect(p.x,p.y,p.w,p.h);
+              var onTop = player.x<p.x+p.w && player.x+player.w>p.x && player.y+player.h<=p.y+10 && player.y+player.h>=p.y-10 && player.vy>=0;
+              if(onTop){ player.y=p.y-player.h; player.vy=0; player.onGround=true; }
+              if(p.x+p.w<-50) platforms.splice(i,1);
+            }
+
+            ctx.fillStyle=THEME_DARK ? '#ef4444' : '#dc2626';
+            for(var j=hazards.length-1;j>=0;j--){ var h=hazards[j]; h.x+=h.vx; ctx.fillRect(h.x,h.y,h.w,h.h); if(rectOverlap(player,h)) alive=false; if(h.x+h.w<-30) hazards.splice(j,1); }
+
+            for(var k=coins.length-1;k>=0;k--){ var c=coins[k]; c.x+=c.vx; drawCoin(c.x,c.y,c.r);
+              if(circleRectOverlap(c.x,c.y,c.r,player)){ coins.splice(k,1); score+=10; }
+              if(c.x+c.r<-30) coins.splice(k,1);
+            }
+
+            drawPlayer();
+
+            // HUD
+            ctx.fillStyle='#111'; ctx.font='bold 16px system-ui'; ctx.fillText('Score: '+score,14,24);
+            ctx.font='12px system-ui'; ctx.fillText('Space/↑ to jump • R restart',14,44);
+
+            if(!alive){ ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+              ctx.fillStyle='#fff'; ctx.font='bold 22px system-ui'; ctx.textAlign='center';
+              ctx.fillText('Game Over — Press R to restart', canvas.width/2, canvas.height/2); ctx.textAlign='left';
+            } else { requestAnimationFrame(step); }
+          }
+          </script>
+          </body></html>
+          HTML
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "bot: auto-tune play page (autosize sprites + debug overlay)"
+          branch: bot/auto-tune-play
+          title: "Auto-tune: improve play page (autosize sprites + debug)"
+          body: "This PR was generated by the 'Propose Auto-Tune Play Page' workflow. It adds automatic sprite sizing and keeps the debug overlay so visuals adjust without manual edits."
+          labels: enhancement, automation
