@@ -59,13 +59,1137 @@
   ],
   "players": [
     {
+      "id": "enemyBlack1",
+      "path": "/assets/library/enemyBlack1.png",
+      "tags": [
+        "enemy",
+        "black1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlack2",
+      "path": "/assets/library/enemyBlack2.png",
+      "tags": [
+        "enemy",
+        "black2"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlack3",
+      "path": "/assets/library/enemyBlack3.png",
+      "tags": [
+        "enemy",
+        "black3"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyBlack4",
+      "path": "/assets/library/enemyBlack4.png",
+      "tags": [
+        "enemy",
+        "black4"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlack5",
+      "path": "/assets/library/enemyBlack5.png",
+      "tags": [
+        "enemy",
+        "black5"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyBlue1",
+      "path": "/assets/library/enemyBlue1.png",
+      "tags": [
+        "enemy",
+        "blue1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlue2",
+      "path": "/assets/library/enemyBlue2.png",
+      "tags": [
+        "enemy",
+        "blue2"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlue3",
+      "path": "/assets/library/enemyBlue3.png",
+      "tags": [
+        "enemy",
+        "blue3"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyBlue4",
+      "path": "/assets/library/enemyBlue4.png",
+      "tags": [
+        "enemy",
+        "blue4"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyBlue5",
+      "path": "/assets/library/enemyBlue5.png",
+      "tags": [
+        "enemy",
+        "blue5"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyGreen1",
+      "path": "/assets/library/enemyGreen1.png",
+      "tags": [
+        "enemy",
+        "green1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyGreen2",
+      "path": "/assets/library/enemyGreen2.png",
+      "tags": [
+        "enemy",
+        "green2"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyGreen3",
+      "path": "/assets/library/enemyGreen3.png",
+      "tags": [
+        "enemy",
+        "green3"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyGreen4",
+      "path": "/assets/library/enemyGreen4.png",
+      "tags": [
+        "enemy",
+        "green4"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyGreen5",
+      "path": "/assets/library/enemyGreen5.png",
+      "tags": [
+        "enemy",
+        "green5"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyRed1",
+      "path": "/assets/library/enemyRed1.png",
+      "tags": [
+        "enemy",
+        "red1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyRed2",
+      "path": "/assets/library/enemyRed2.png",
+      "tags": [
+        "enemy",
+        "red2"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyRed3",
+      "path": "/assets/library/enemyRed3.png",
+      "tags": [
+        "enemy",
+        "red3"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "enemyRed4",
+      "path": "/assets/library/enemyRed4.png",
+      "tags": [
+        "enemy",
+        "red4"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "enemyRed5",
+      "path": "/assets/library/enemyRed5.png",
+      "tags": [
+        "enemy",
+        "red5"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "female_tilesheet",
+      "path": "/assets/library/female_tilesheet.png",
+      "tags": [
+        "female"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire00",
+      "path": "/assets/library/fire00.png",
+      "tags": [
+        "fire00"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire01",
+      "path": "/assets/library/fire01.png",
+      "tags": [
+        "fire01"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire02",
+      "path": "/assets/library/fire02.png",
+      "tags": [
+        "fire02"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire03",
+      "path": "/assets/library/fire03.png",
+      "tags": [
+        "fire03"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire04",
+      "path": "/assets/library/fire04.png",
+      "tags": [
+        "fire04"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire05",
+      "path": "/assets/library/fire05.png",
+      "tags": [
+        "fire05"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire06",
+      "path": "/assets/library/fire06.png",
+      "tags": [
+        "fire06"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire07",
+      "path": "/assets/library/fire07.png",
+      "tags": [
+        "fire07"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire08",
+      "path": "/assets/library/fire08.png",
+      "tags": [
+        "fire08"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire09",
+      "path": "/assets/library/fire09.png",
+      "tags": [
+        "fire09"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire10",
+      "path": "/assets/library/fire10.png",
+      "tags": [
+        "fire10"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire11",
+      "path": "/assets/library/fire11.png",
+      "tags": [
+        "fire11"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire12",
+      "path": "/assets/library/fire12.png",
+      "tags": [
+        "fire12"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire13",
+      "path": "/assets/library/fire13.png",
+      "tags": [
+        "fire13"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire14",
+      "path": "/assets/library/fire14.png",
+      "tags": [
+        "fire14"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire15",
+      "path": "/assets/library/fire15.png",
+      "tags": [
+        "fire15"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire16",
+      "path": "/assets/library/fire16.png",
+      "tags": [
+        "fire16"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire17",
+      "path": "/assets/library/fire17.png",
+      "tags": [
+        "fire17"
+      ],
+      "frame": {
+        "cols": 2,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire18",
+      "path": "/assets/library/fire18.png",
+      "tags": [
+        "fire18"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "fire19",
+      "path": "/assets/library/fire19.png",
+      "tags": [
+        "fire19"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserBlue01",
+      "path": "/assets/library/laserBlue01.png",
+      "tags": [
+        "laser",
+        "blue01"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserBlue02",
+      "path": "/assets/library/laserBlue02.png",
+      "tags": [
+        "laser",
+        "blue02"
+      ]
+    },
+    {
+      "id": "laserBlue03",
+      "path": "/assets/library/laserBlue03.png",
+      "tags": [
+        "laser",
+        "blue03"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserBlue13",
+      "path": "/assets/library/laserBlue13.png",
+      "tags": [
+        "laser",
+        "blue13"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserBlue14",
+      "path": "/assets/library/laserBlue14.png",
+      "tags": [
+        "laser",
+        "blue14"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 3
+      }
+    },
+    {
+      "id": "laserBlue15",
+      "path": "/assets/library/laserBlue15.png",
+      "tags": [
+        "laser",
+        "blue15"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserBlue16",
+      "path": "/assets/library/laserBlue16.png",
+      "tags": [
+        "laser",
+        "blue16"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 6
+      }
+    },
+    {
+      "id": "laserGreen01",
+      "path": "/assets/library/laserGreen01.png",
+      "tags": [
+        "laser",
+        "green01"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 2
+      }
+    },
+    {
+      "id": "laserGreen02",
+      "path": "/assets/library/laserGreen02.png",
+      "tags": [
+        "laser",
+        "green02"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 3
+      }
+    },
+    {
+      "id": "laserGreen03",
+      "path": "/assets/library/laserGreen03.png",
+      "tags": [
+        "laser",
+        "green03"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen04",
+      "path": "/assets/library/laserGreen04.png",
+      "tags": [
+        "laser",
+        "green04"
+      ]
+    },
+    {
+      "id": "laserGreen05",
+      "path": "/assets/library/laserGreen05.png",
+      "tags": [
+        "laser",
+        "green05"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen06",
+      "path": "/assets/library/laserGreen06.png",
+      "tags": [
+        "laser",
+        "green06"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 3
+      }
+    },
+    {
+      "id": "laserGreen07",
+      "path": "/assets/library/laserGreen07.png",
+      "tags": [
+        "laser",
+        "green07"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen08",
+      "path": "/assets/library/laserGreen08.png",
+      "tags": [
+        "laser",
+        "green08"
+      ]
+    },
+    {
+      "id": "laserGreen09",
+      "path": "/assets/library/laserGreen09.png",
+      "tags": [
+        "laser",
+        "green09"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen10",
+      "path": "/assets/library/laserGreen10.png",
+      "tags": [
+        "laser",
+        "green10"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 6
+      }
+    },
+    {
+      "id": "laserGreen11",
+      "path": "/assets/library/laserGreen11.png",
+      "tags": [
+        "laser",
+        "green11"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen12",
+      "path": "/assets/library/laserGreen12.png",
+      "tags": [
+        "laser",
+        "green12"
+      ]
+    },
+    {
+      "id": "laserGreen13",
+      "path": "/assets/library/laserGreen13.png",
+      "tags": [
+        "laser",
+        "green13"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen14",
+      "path": "/assets/library/laserGreen14.png",
+      "tags": [
+        "laser",
+        "green14"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen15",
+      "path": "/assets/library/laserGreen15.png",
+      "tags": [
+        "laser",
+        "green15"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserGreen16",
+      "path": "/assets/library/laserGreen16.png",
+      "tags": [
+        "laser",
+        "green16"
+      ]
+    },
+    {
+      "id": "laserRed01",
+      "path": "/assets/library/laserRed01.png",
+      "tags": [
+        "laser",
+        "red01"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed02",
+      "path": "/assets/library/laserRed02.png",
+      "tags": [
+        "laser",
+        "red02"
+      ]
+    },
+    {
+      "id": "laserRed03",
+      "path": "/assets/library/laserRed03.png",
+      "tags": [
+        "laser",
+        "red03"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed04",
+      "path": "/assets/library/laserRed04.png",
+      "tags": [
+        "laser",
+        "red04"
+      ]
+    },
+    {
+      "id": "laserRed05",
+      "path": "/assets/library/laserRed05.png",
+      "tags": [
+        "laser",
+        "red05"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed06",
+      "path": "/assets/library/laserRed06.png",
+      "tags": [
+        "laser",
+        "red06"
+      ]
+    },
+    {
+      "id": "laserRed07",
+      "path": "/assets/library/laserRed07.png",
+      "tags": [
+        "laser",
+        "red07"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed08",
+      "path": "/assets/library/laserRed08.png",
+      "tags": [
+        "laser",
+        "red08"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed09",
+      "path": "/assets/library/laserRed09.png",
+      "tags": [
+        "laser",
+        "red09"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed10",
+      "path": "/assets/library/laserRed10.png",
+      "tags": [
+        "laser",
+        "red10"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "laserRed11",
+      "path": "/assets/library/laserRed11.png",
+      "tags": [
+        "laser",
+        "red11"
+      ]
+    },
+    {
+      "id": "laserRed12",
+      "path": "/assets/library/laserRed12.png",
+      "tags": [
+        "laser",
+        "red12"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 3
+      }
+    },
+    {
+      "id": "laserRed13",
+      "path": "/assets/library/laserRed13.png",
+      "tags": [
+        "laser",
+        "red13"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed14",
+      "path": "/assets/library/laserRed14.png",
+      "tags": [
+        "laser",
+        "red14"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 3
+      }
+    },
+    {
+      "id": "laserRed15",
+      "path": "/assets/library/laserRed15.png",
+      "tags": [
+        "laser",
+        "red15"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "laserRed16",
+      "path": "/assets/library/laserRed16.png",
+      "tags": [
+        "laser",
+        "red16"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 6
+      }
+    },
+    {
+      "id": "player_tilesheet",
+      "path": "/assets/library/player_tilesheet.png",
+      "tags": [],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip1_damage1",
+      "path": "/assets/library/playerShip1_damage1.png",
+      "tags": [
+        "ship1",
+        "damage1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip1_damage2",
+      "path": "/assets/library/playerShip1_damage2.png",
+      "tags": [
+        "ship1",
+        "damage2"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip1_damage3",
+      "path": "/assets/library/playerShip1_damage3.png",
+      "tags": [
+        "ship1",
+        "damage3"
+      ],
+      "frame": {
+        "cols": 10,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip2_damage1",
+      "path": "/assets/library/playerShip2_damage1.png",
+      "tags": [
+        "ship2",
+        "damage1"
+      ],
+      "frame": {
+        "cols": 3,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip2_damage2",
+      "path": "/assets/library/playerShip2_damage2.png",
+      "tags": [
+        "ship2",
+        "damage2"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip2_damage3",
+      "path": "/assets/library/playerShip2_damage3.png",
+      "tags": [
+        "ship2",
+        "damage3"
+      ],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "playerShip3_damage1",
+      "path": "/assets/library/playerShip3_damage1.png",
+      "tags": [
+        "ship3",
+        "damage1"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 4
+      }
+    },
+    {
+      "id": "playerShip3_damage2",
+      "path": "/assets/library/playerShip3_damage2.png",
+      "tags": [
+        "ship3",
+        "damage2"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 4
+      }
+    },
+    {
+      "id": "playerShip3_damage3",
+      "path": "/assets/library/playerShip3_damage3.png",
+      "tags": [
+        "ship3",
+        "damage3"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 4
+      }
+    },
+    {
+      "id": "sheet",
+      "path": "/assets/library/sheet.png",
+      "tags": [],
+      "frame": {
+        "cols": 8,
+        "rows": 1
+      }
+    },
+    {
+      "id": "shield1",
+      "path": "/assets/library/shield1.png",
+      "tags": [
+        "shield1"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "shield2",
+      "path": "/assets/library/shield2.png",
+      "tags": [
+        "shield2"
+      ]
+    },
+    {
+      "id": "shield3",
+      "path": "/assets/library/shield3.png",
+      "tags": [
+        "shield3"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "soldier_tilesheet",
+      "path": "/assets/library/soldier_tilesheet.png",
+      "tags": [
+        "soldier"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
       "id": "soldier_tilesheet",
       "path": "/assets/sprites/soldier_tilesheet.png",
       "tags": [
         "soldier"
       ],
       "frame": {
-        "cols": 8,
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "speed",
+      "path": "/assets/library/speed.png",
+      "tags": [
+        "speed"
+      ],
+      "frame": {
+        "cols": 1,
+        "rows": 12
+      }
+    },
+    {
+      "id": "star1",
+      "path": "/assets/library/star1.png",
+      "tags": [
+        "star1"
+      ],
+      "frame": {
+        "cols": 5,
+        "rows": 1
+      }
+    },
+    {
+      "id": "star2",
+      "path": "/assets/library/star2.png",
+      "tags": [
+        "star2"
+      ],
+      "frame": {
+        "cols": 5,
+        "rows": 1
+      }
+    },
+    {
+      "id": "star3",
+      "path": "/assets/library/star3.png",
+      "tags": [
+        "star3"
+      ],
+      "frame": {
+        "cols": 12,
+        "rows": 1
+      }
+    },
+    {
+      "id": "zombie_tilesheet",
+      "path": "/assets/library/zombie_tilesheet.png",
+      "tags": [
+        "zombie"
+      ],
+      "frame": {
+        "cols": 12,
         "rows": 1
       }
     },
@@ -76,7 +1200,7 @@
         "zombie"
       ],
       "frame": {
-        "cols": 8,
+        "cols": 12,
         "rows": 1
       }
     }
