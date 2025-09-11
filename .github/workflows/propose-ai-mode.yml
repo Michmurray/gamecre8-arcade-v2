@@ -1,0 +1,416 @@
+name: Propose AI Mode (Design + Surprise Me)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------- /api/design: prompt -> design spec (no external API needed) ----------
+      - name: Write api/design.js
+        run: |
+          mkdir -p api
+          cat > api/design.js <<'JS'
+          // api/design.js
+          // Produces a "design spec" from a prompt OR at random using available assets.
+          // No external API; uses heuristics + randomness on /assets/manifest.json.
+          export default async function handler(req, res) {
+            const q = (req.query && (req.query.prompt||"")) || "";
+            const prompt = String(q);
+            const P = prompt.toLowerCase();
+            const proto = (req.headers["x-forwarded-proto"] || "https");
+            const host  = req.headers.host;
+
+            // fetch manifest
+            let manifest=null;
+            try{
+              const r = await fetch(`${proto}://${host}/assets/manifest.json`);
+              if(r.ok) manifest = await r.json();
+            }catch{}
+            const backgrounds = Array.isArray(manifest?.backgrounds) ? manifest.backgrounds : [];
+            const players     = Array.isArray(manifest?.players)     ? manifest.players     : [];
+
+            function tokset(s){ return new Set(String(s).replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean)); }
+            const WORDS = tokset(P);
+
+            const THEMES = [
+              {key:"space",  tags:["space","galaxy","cosmos","star","sci-fi","scifi"]},
+              {key:"forest", tags:["forest","woods","trees","grass"]},
+              {key:"desert", tags:["desert","sand","dunes","hot"]},
+              {key:"castle", tags:["castle","medieval","stone"]},
+              {key:"water",  tags:["water","ocean","sea","underwater"]},
+              {key:"city",   tags:["city","urban","street"]},
+              {key:"fall",   tags:["fall","autumn","orange","leaf","leaves"]}
+            ];
+            const ACTORS = [
+              {key:"soldier", tags:["soldier","army","military","rifle","troop","gun"]},
+              {key:"zombie",  tags:["zombie","undead","ghoul","horror"]},
+              {key:"alien",   tags:["alien","ufo","ship","spaceship","drone","bug","monster","enemy","bird","robot"]}
+            ];
+            function hasAny(arr){ return arr.some(w=>WORDS.has(w)); }
+
+            // pick theme from prompt else weighted by backgrounds
+            let theme = null;
+            for(const t of THEMES){ if(hasAny(t.tags)){ theme=t.key; break; } }
+            if(!theme){
+              // weight by how many backgrounds match each theme
+              const weights = THEMES.map(t=>{
+                const c = backgrounds.filter(b=>(b.tags||[]).some(x=>t.tags.includes(String(x).toLowerCase()))).length;
+                return {t, w: Math.max(1,c)};
+              });
+              const sum = weights.reduce((a,b)=>a+b.w,0);
+              let r = Math.random()*sum;
+              for(const item of weights){ if((r-=item.w)<=0){ theme=item.t.key; break; } }
+              if(!theme) theme="forest";
+            }
+
+            // choose background favoring theme
+            function pickBg(){
+              const themed = backgrounds.filter(b=>(b.tags||[]).map(String).map(x=>x.toLowerCase()).some(t=>t.includes(theme)));
+              const pool = themed.length?themed:backgrounds;
+              return pool.length? pool[Math.floor(Math.random()*pool.length)] : null;
+            }
+
+            // choose player favoring actor words (soldier/zombie/alien), else any
+            let role = null;
+            for(const a of ACTORS){ if(hasAny(a.tags)){ role=a.key; break; } }
+            function pickPlayer(){
+              const prefTags = role ? ACTORS.find(a=>a.key===role).tags : [];
+              const match = players.filter(p=>(p.tags||[]).map(String).map(x=>x.toLowerCase()).some(t=>prefTags.includes(t)));
+              const pool = match.length? match : players;
+              return pool.length? pool[Math.floor(Math.random()*pool.length)] : null;
+            }
+
+            const bg = pickBg();
+            const pl = pickPlayer();
+
+            // gameplay knobs inferred from theme + prompt
+            let speed = /fast|runner|dash|quick/.test(P) ? 5 : (/slow|chill|cozy/.test(P) ? 2.5 : 3);
+            let gravity = 0.7; if (theme==="space") gravity=0.4; if (theme==="water") gravity=0.5; if (/heavy|hardcore/.test(P)) gravity=0.9;
+            let themeMode = (theme==="space" || /night|dark|noir|midnight|horror/.test(P)) ? "dark" : "light";
+            let platformRate = /platformer|parkour|jump/.test(P) ? 0.08 : 0.06;
+            let coinRate = /collect|coin|ring|gems|kids|kid|cozy/.test(P) ? 0.08 : 0.05;
+            let hazardRate = /lava|spike|enemy|bullet|trap|hard|difficult/.test(P) ? 0.05 : (/kids|kid|cozy/.test(P)?0.015:0.03);
+            let jump = /parkour|ninja|high|bouncy/.test(P) ? 14 : 12; if (gravity<0.6) jump = Math.max(jump,13);
+
+            res.status(200).json({
+              ok:true,
+              design:{
+                promptUsed: prompt,
+                theme,
+                role: role || "enemy",
+                tags:{ bg:[theme], player:[role||"enemy"] },
+                knobs:{ speed, gravity, theme: themeMode, platformRate, coinRate, hazardRate, jump },
+                chosen:{ backgroundId: bg?.id || null, playerId: pl?.id || null }
+              },
+              counts:{ backgrounds: backgrounds.length, players: players.length },
+              ts: new Date().toISOString()
+            });
+          }
+          JS
+
+      # ---------- Update api/generate to use AI mode when ?ai=1 or prompt is empty ----------
+      - name: Write api/generate.js (AI-aware, fail-safe, debug)
+        run: |
+          cat > api/generate.js <<'JS'
+          // api/generate.js
+          // Prompt -> config, with AI mode support (?ai=1 or empty prompt).
+          export default async function handler(req, res) {
+            try {
+              const prompt = String((req.query && req.query.prompt) || "");
+              const useAI  = (String(req.query?.ai||"") === "1") || !prompt.trim();
+              const proto  = (req.headers["x-forwarded-proto"] || "https");
+              const host   = req.headers.host;
+
+              // load manifest
+              let manifest=null;
+              try{ const r=await fetch(`${proto}://${host}/assets/manifest.json`); if(r.ok) manifest=await r.json(); }catch{}
+              const bgs = Array.isArray(manifest?.backgrounds)?manifest.backgrounds:[];
+              const pls = Array.isArray(manifest?.players)?manifest.players:[];
+
+              // if AI mode, ask /api/design for a spec
+              let design=null;
+              if (useAI) {
+                try{
+                  const r = await fetch(`${proto}://${host}/api/design?prompt=${encodeURIComponent(prompt)}`);
+                  if (r.ok) { const j=await r.json(); design=j.design||null; }
+                }catch{}
+              }
+
+              // helper: pick by id or fallback to first
+              const byId = (arr,id)=>arr.find(x=>x.id===id) || null;
+              const firstOr = (arr, v=null)=> (arr && arr.length? arr[0] : v);
+
+              // basic word scoring for non-AI path
+              const P = prompt.toLowerCase();
+              const words = new Set(P.replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean));
+              const buckets = {
+                space:["space","galaxy","cosmos","star","sci-fi","scifi"],
+                night:["night","dark","noir","midnight"],
+                forest:["forest","woods","trees","grass"],
+                grass:["grass","field","meadow","plains"],
+                desert:["desert","sand","dunes","hot"],
+                fall:["fall","autumn","orange","leaf","leaves"],
+                castle:["castle","medieval","keep","fortress","stone"],
+                water:["water","ocean","sea","underwater","river","lake"],
+                zombie:["zombie","undead","ghoul","horror"],
+                soldier:["soldier","army","military","troop","rifle","gun"],
+                enemy:["enemy","alien","ufo","ship","spaceship","fighter","plane","jet","bug","monster","boss","drone","bird"]
+              };
+              const hasAny = (arr)=>arr.some(w=>words.has(w));
+
+              function score(tags=[]){
+                let s=0;
+                for(const t of tags.map(x=>String(x||"").toLowerCase())){
+                  if (words.has(t)) s+=1;
+                  for(const list of Object.values(buckets)){ if(list.includes(t)){ s+=1; break; } }
+                }
+                return s;
+              }
+              function pick(items,bias=[]){
+                if(!items.length) return null;
+                let best=items[0], bestS=-1;
+                for(const it of items){
+                  const s = score([...(it.tags||[]), ...bias]);
+                  if(s>bestS){ bestS=s; best=it; }
+                }
+                return best;
+              }
+
+              // Choose assets
+              let chosenBg=null, chosenPl=null;
+              if (design) {
+                chosenBg = (design.chosen?.backgroundId) ? byId(bgs, design.chosen.backgroundId) : null;
+                chosenPl = (design.chosen?.playerId)     ? byId(pls, design.chosen.playerId)     : null;
+                if (!chosenBg) chosenBg = pick(bgs, design.tags?.bg || []) || firstOr(bgs);
+                if (!chosenPl) chosenPl = pick(pls, design.tags?.player || []) || firstOr(pls);
+              } else {
+                const bgBias=[]
+                  .concat(hasAny(buckets.space)?["space"]:[])
+                  .concat(hasAny(buckets.night)?["night"]:[])
+                  .concat(hasAny(buckets.forest)?["forest"]:[])
+                  .concat(hasAny(buckets.grass)?["grass"]:[])
+                  .concat(hasAny(buckets.desert)?["desert"]:[])
+                  .concat(hasAny(buckets.fall)?["fall"]:[])
+                  .concat(hasAny(buckets.castle)?["castle"]:[])
+                  .concat(hasAny(buckets.water)?["water"]:[]);
+                const plBias=[]
+                  .concat(hasAny(buckets.zombie)?["zombie"]:[])
+                  .concat(hasAny(buckets.soldier)?["soldier"]:[])
+                  .concat(hasAny(buckets.enemy)?["enemy","alien","ship","drone","bird"]:[]);
+                chosenBg = pick(bgs, bgBias) || firstOr(bgs);
+                chosenPl = pick(pls, plBias) || firstOr(pls);
+              }
+
+              // Gameplay knobs
+              let speed = /fast|speed|runner|dash|quick/.test(P) ? 5 : (/slow|chill|cozy/.test(P) ? 2.5 : 3);
+              let gravity = 0.7;
+              let themeMode = (hasAny(buckets.night)||hasAny(buckets.space)||/horror/.test(P)) ? "dark" : "light";
+              let platformRate = /platformer|parkour|jump/.test(P) ? 0.08 : 0.06;
+              let coinRate = /collect|coin|ring|rings|gems|collectibles|kids|kid|cozy/.test(P) ? 0.08 : 0.05;
+              let hazardRate = /lava|spike|enemy|bullet|trap|hard|difficult/.test(P) ? 0.05 : (/kids|kid|cozy/.test(P)?0.015:0.03);
+              let jump = /parkour|ninja|high|bouncy/.test(P) ? 14 : 12; if (gravity<0.6) jump = Math.max(jump,13);
+              if (design && design.knobs) { ({speed, gravity, platformRate, coinRate, hazardRate, jump} = {...{speed,gravity,platformRate,coinRate,hazardRate,jump}, ...design.knobs}); themeMode = design.knobs.theme || themeMode; }
+
+              const config = {
+                speed, gravity, theme: themeMode, platformRate, coinRate, hazardRate, jump,
+                assets:{
+                  background: chosenBg?.path || null,
+                  player:     chosenPl?.path || null,
+                  playerFrame: chosenPl?.frame || null
+                }
+              };
+              if (!config.assets.playerFrame && (config.assets.player||"").toLowerCase().includes("tilesheet")) {
+                config.assets.playerFrame = { cols: 8, rows: 1 };
+              }
+
+              res.status(200).json({
+                ok:true, message: useAI ? "AI design -> config" : "Config+assets generated from prompt",
+                prompt,
+                config,
+                debug:{
+                  ai: useAI,
+                  counts:{ backgrounds:bgs.length, players:pls.length },
+                  chosen:{ background: chosenBg?.id || null, player: chosenPl?.id || null },
+                  design: design || null
+                },
+                ts: new Date().toISOString()
+              });
+            } catch {
+              res.status(200).json({
+                ok:true, message:"Default config (API error handled)",
+                prompt:String((req.query && req.query.prompt) || ""),
+                config:{
+                  speed:3, gravity:0.7, theme:'light',
+                  platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12,
+                  assets:{ background:null, player:null, playerFrame:null }
+                },
+                ts:new Date().toISOString()
+              });
+            }
+          }
+          JS
+
+      # ---------- Update play.html: add Surprise Me + ai=1 support ----------
+      - name: Write play.html (AI-aware)
+        run: |
+          cat > play.html <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+          <title>GameCre8 — Play</title>
+          <style>
+            :root { --fg:#0b0b0f; --line:#e5e7eb; --ui:#f7f7f9; }
+            * { box-sizing: border-box }
+            body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:var(--fg) }
+            header { padding:10px 12px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+            header input { flex:1; min-width:200px; padding:8px 10px; font-size:14px; border:1px solid var(--line); border-radius:10px }
+            header button { padding:8px 12px; font-size:14px; border:1px solid var(--line); border-radius:10px; background:var(--ui); cursor:pointer }
+            #hud { position:fixed; left:10px; top:58px; background:rgba(255,255,255,.92); border:1px solid var(--line); padding:8px 10px; border-radius:10px; font-size:12px; max-width:min(92vw,520px) }
+            #dbg { position:fixed; right:10px; top:58px; background:rgba(0,0,0,.75); color:#fff; padding:8px 10px; border-radius:10px; font:12px/1.4 system-ui; max-width:min(92vw,520px); white-space:pre-wrap; display:none }
+            canvas { display:block; width:100vw; height:calc(100vh - 50px) }
+          </style>
+          <body>
+            <header>
+              <input id="prompt" placeholder="Describe a game…" />
+              <button id="playBtn">Play</button>
+              <button id="surpriseBtn">Surprise me</button>
+              <button id="home" onclick="location.href='/'">Home</button>
+            </header>
+            <div id="hud">Loading…</div>
+            <div id="dbg"></div>
+            <canvas id="c"></canvas>
+          <script>
+          function qp(name){ var m=new RegExp('[?&]'+name+'=([^&]*)').exec(location.search); return m?decodeURIComponent(m[1].replace(/\+/g,'%20')):''; }
+          var promptInput=document.getElementById('prompt');
+          var DEBUG = qp('debug')==='1';
+          var AI = qp('ai')==='1';
+          promptInput.value = qp('prompt') || '';
+          document.getElementById('playBtn').onclick=function(){ var p=(promptInput.value||'').trim(); location.href='./play.html?prompt='+encodeURIComponent(p||'')+(AI?'&ai=1':''); };
+          document.getElementById('surpriseBtn').onclick=function(){ location.href='./play.html?ai=1'; };
+          var dbgEl=document.getElementById('dbg'); if(DEBUG) dbgEl.style.display='block';
+
+          var canvas=document.getElementById('c'); var ctx=canvas.getContext('2d',{alpha:false});
+          function fitCanvas(){ var w=innerWidth, h=Math.max(320, innerHeight-50); canvas.width=w; canvas.height=h; } fitCanvas(); addEventListener('resize', fitCanvas);
+          function groundY(){ return canvas.height - 60; }
+          var hud=document.getElementById('hud');
+          var CFG={ speed:3, gravity:0.7, theme:'light', platformRate:0.06, coinRate:0.05, hazardRate:0.03, jump:12, assets:{ background:null, player:null, playerFrame:null } };
+          function loadImage(src){ return new Promise(function(res,rej){ var i=new Image(); i.onload=function(){res(i)}; i.onerror=function(){rej(new Error('load fail '+src))}; i.src=src; }); }
+          var t=0, alive=true, score=0, THEME_DARK=false, themeBG, themeGround, themeHaz, themeCoin;
+          var player={ x:80, y:0, w:64, h:64, vy:0, onGround:false };
+          var BG_IMG=null, PLAYER_IMG=null, GRID=null; var platforms=[], coins=[], hazards=[];
+
+          (function(){
+            var p = promptInput.value || '';
+            var url = '/api/generate?prompt='+encodeURIComponent(p)+'&nocache='+Date.now() + (AI?'&ai=1':'');
+            fetch(url).then(r=>r.json()).then(j=>{
+              if (j && j.config) CFG=j.config;
+              if (DEBUG) dbgEl.textContent='API chosen:\\n'+JSON.stringify({assets:CFG.assets, debug:j.debug},null,2);
+            }).then(()=>{
+              var tasks=[];
+              if (CFG.assets && CFG.assets.background) tasks.push(loadImage(CFG.assets.background).then(img=>{BG_IMG=img}).catch(e=>{ if(DEBUG) dbgEl.textContent+='\\nBG load fail: '+e; }));
+              if (CFG.assets && CFG.assets.player)     tasks.push(loadImage(CFG.assets.player).then(img=>{PLAYER_IMG=img}).catch(e=>{ if(DEBUG) dbgEl.textContent+='\\nPlayer load fail: '+e; }));
+              GRID = (CFG.assets && CFG.assets.playerFrame) ? CFG.assets.playerFrame : null;
+              return Promise.all(tasks);
+            }).then(()=>{
+              try{
+                var frameW=48, frameH=48;
+                if (PLAYER_IMG){
+                  if (GRID && GRID.cols>0 && GRID.rows>0){ frameW=Math.floor(PLAYER_IMG.width/GRID.cols); frameH=Math.floor(PLAYER_IMG.height/GRID.rows); }
+                  else {
+                    var tryCols=[12,10,8,6,4,3,2]; var guessed=null;
+                    for (var c of tryCols){ if(PLAYER_IMG.width % c===0){ guessed={cols:c,rows:1}; break; } }
+                    if(!guessed){ var tryRows=[12,10,8,6,4,3,2]; for (var r of tryRows){ if(PLAYER_IMG.height % r===0){ guessed={cols:1,rows:r}; break; } }
+                    if(guessed){ GRID=guessed; frameW=Math.floor(PLAYER_IMG.width/GRID.cols); frameH=Math.floor(PLAYER_IMG.height/GRID.rows); }
+                    else { frameW=PLAYER_IMG.width; frameH=PLAYER_IMG.height; }
+                  }
+                }
+                var aspect=frameW>0?(frameW/(frameH||1)):1; var targetH=Math.min(128,Math.max(64,Math.round(frameH*2)));
+                player.h=targetH; player.w=Math.round(targetH*aspect);
+              }catch(e){}
+
+              hud.textContent='Mode: '+(AI?'AI':'Prompt')+' • '+(p||'(no prompt)')+' • theme='+CFG.theme+' • speed='+CFG.speed+' • gravity='+CFG.gravity;
+              startGame();
+            }).catch(()=>{
+              hud.textContent='(API fallback)'; startGame();
+            });
+          })();
+
+          addEventListener('keydown', function(e){
+            if (e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){ if(player.onGround){ player.vy=-CFG.jump; player.onGround=false; } e.preventDefault(); }
+            if (e.code==='KeyR' && !alive) location.reload();
+          });
+
+          function spawn(){
+            if (t%8===0 && Math.random()<CFG.platformRate){
+              var y=groundY() - (Math.floor(Math.random()*3)*40) - 20;
+              platforms.push({ x:canvas.width+50, y:y, w:120+Math.random()*140, h:12, vx:-CFG.speed - Math.random()*2 });
+            }
+            if (Math.random()<CFG.coinRate){ var y2=groundY() - 120 - Math.random()*120; coins.push({ x:canvas.width+20, y:y2, r:8, vx:-CFG.speed-1.5 }); }
+            if (Math.random()<CFG.hazardRate){ var y3=groundY() - 24; hazards.push({ x:canvas.width+20, y:y3, w:24, h:24, vx:-CFG.speed - Math.random()*2 }); }
+          }
+          function rectOverlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+          function circleRectOverlap(cx,cy,cr,r){ var nx=Math.max(r.x,Math.min(cx,r.x+r.w)); var ny=Math.max(r.y,Math.min(cy,r.y+r.h)); var dx=cx-nx, dy=cy-ny; return (dx*dx+dy*dy)<=cr*cr; }
+          var animCol=0;
+          function drawPlayer(){
+            if(!PLAYER_IMG){ ctx.fillStyle='#0b6bcb'; ctx.fillRect(player.x,player.y,player.w,player.h); if(DEBUG) dbgEl.textContent+='\\n(no PLAYER_IMG — fallback box)'; return; }
+            var grid=(GRID && GRID.cols>0 && GRID.rows>0)?GRID:null;
+            if(grid){
+              var tw=Math.floor(PLAYER_IMG.width/grid.cols), th=Math.floor(PLAYER_IMG.height/grid.rows);
+              if(t%6===0) animCol=(animCol+1)%Math.max(1,grid.cols);
+              var sx=(grid.cols>1?animCol:0)*tw, sy=0; ctx.drawImage(PLAYER_IMG,sx,sy,tw,th,player.x,player.y,player.w,player.h);
+            } else { ctx.drawImage(PLAYER_IMG,player.x,player.y,player.w,player.h); }
+          }
+          function drawCoin(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle='#f59e0b'; ctx.fill(); ctx.closePath();
+            ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.4)'; ctx.fill(); ctx.closePath(); }
+
+          function startGame(){
+            THEME_DARK = CFG.theme==='dark';
+            themeBG     = THEME_DARK ? '#0b1020' : '#eaf6ff';
+            themeGround = THEME_DARK ? '#132040' : '#d2e9ff';
+            themeHaz    = THEME_DARK ? '#ff4d4f' : '#ef4444';
+            themeCoin   = THEME_DARK ? '#ffd166' : '#f59e0b';
+            player.y=groundY()-player.h; requestAnimationFrame(step);
+          }
+          function step(){
+            t++;
+            if(BG_IMG) ctx.drawImage(BG_IMG,0,0,canvas.width,canvas.height); else { ctx.fillStyle=themeBG; ctx.fillRect(0,0,canvas.width,canvas.height); }
+            ctx.fillStyle=themeGround; ctx.fillRect(0,groundY(),canvas.width,canvas.height-groundY());
+            spawn();
+            player.vy+=CFG.gravity; player.y+=player.vy; player.onGround=false;
+            if(player.y+player.h>=groundY()){ player.y=groundY()-player.h; player.vy=0; player.onGround=true; }
+            ctx.fillStyle='#c7d2fe';
+            for(var i=platforms.length-1;i>=0;i--){ var p=platforms[i]; p.x+=p.vx; ctx.fillRect(p.x,p.y,p.w,p.h);
+              var onTop=player.x<p.x+p.w && player.x+player.w>p.x && player.y+player.h<=p.y+10 && player.y+player.h>=p.y-10 && player.vy>=0;
+              if(onTop){ player.y=p.y-player.h; player.vy=0; player.onGround=true; }
+              if(p.x+p.w<-50) platforms.splice(i,1);
+            }
+            ctx.fillStyle='#dc2626';
+            for(var j=hazards.length-1;j>=0;j--){ var h=hazards[j]; h.x+=h.vx; ctx.fillRect(h.x,h.y,h.w,h.h); if(rectOverlap(player,h)) alive=false; if(h.x+h.w<-30) hazards.splice(j,1); }
+            for(var k=coins.length-1;k>=0;k--){ var c=coins[k]; c.x+=c.vx; drawCoin(c.x,c.y,c.r);
+              if(circleRectOverlap(c.x,c.y,c.r,player)){ coins.splice(k,1); score+=10; }
+              if(c.x+c.r<-30) coins.splice(k,1);
+            }
+            drawPlayer();
+            ctx.fillStyle='#111'; ctx.font='bold 16px system-ui'; ctx.fillText('Score: '+score,14,24);
+            ctx.font='12px system-ui'; ctx.fillText('Space/↑ to jump • R restart',14,44);
+            if(!alive){ ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#fff'; ctx.font='bold 22px system-ui'; ctx.textAlign='center';
+              ctx.fillText('Game Over — Press R to restart', canvas.width/2, canvas.height/2); ctx.textAlign='left'; }
+            else { requestAnimationFrame(step); }
+          }
+          </script></body></html>
+          HTML
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "bot: add AI Mode (/api/design), update generate & play (Surprise Me)"
+          branch: bot/ai-mode
+          title: "AI Mode: Prompted + Surprise Me (no manual edits)"
+          body: "This PR adds /api/design (no-external-API designer), updates /api/generate to support ai=1 or empty prompts, and updates play.html with a Surprise Me button and AI-aware fetch. Merge to enable full prompt→play and autonomous AI mode."
+          labels: enhancement, automation
